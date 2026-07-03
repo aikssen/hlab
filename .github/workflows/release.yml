@@ -1,0 +1,45 @@
+name: release
+
+on:
+  push:
+    tags: ['v*']
+
+permissions:
+  contents: write
+
+jobs:
+  build:
+    runs-on: ubuntu-latest
+    steps:
+      - uses: actions/checkout@v4
+
+      - uses: actions/setup-go@v5
+        with:
+          go-version: '1.26'
+
+      - name: Build binaries
+        run: |
+          mkdir -p dist
+          VER="${GITHUB_REF_NAME}"
+          for os in linux darwin; do
+            for arch in amd64 arm64; do
+              echo "building hlab_${os}_${arch} (${VER})"
+              GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
+                -ldflags "-X github.com/aikssen/hlab/cmd.Version=${VER}" \
+                -o "dist/hlab_${os}_${arch}" .
+            done
+          done
+
+      - name: Generate checksums
+        run: |
+          # Runner is ubuntu-latest, so sha256sum is available.
+          cd dist && sha256sum hlab_* > SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Publish release
+        uses: softprops/action-gh-release@v2
+        with:
+          files: |
+            dist/hlab_*
+            dist/SHA256SUMS
+          generate_release_notes: true

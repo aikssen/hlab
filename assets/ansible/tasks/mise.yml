@@ -1,0 +1,34 @@
+---
+- name: Check whether mise is installed for the user
+  ansible.builtin.stat:
+    path: "/home/{{ target_user }}/.local/bin/mise"
+  register: mise_bin
+
+- name: Install mise (user-local)
+  ansible.builtin.shell: curl -fsSL https://mise.run | sh
+  args:
+    creates: "/home/{{ target_user }}/.local/bin/mise"
+  become: true
+  become_user: "{{ target_user }}"
+  when: not mise_bin.stat.exists
+
+- name: Activate mise in the user's shell
+  ansible.builtin.lineinfile:
+    path: "/home/{{ target_user }}/.bashrc"
+    line: 'eval "$(~/.local/bin/mise activate bash)"'
+    create: true
+    owner: "{{ target_user }}"
+    group: "{{ target_user }}"
+    mode: "0644"
+  become: true
+  become_user: "{{ target_user }}"
+
+- name: Self-update mise
+  ansible.builtin.shell: ~/.local/bin/mise self-update -y
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  when: upgrade | bool
+  failed_when: false # a distro-packaged mise can't self-update; not fatal
+  changed_when: true

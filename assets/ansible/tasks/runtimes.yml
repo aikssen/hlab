@@ -1,0 +1,29 @@
+---
+- name: Map selected runtimes to mise tool specs
+  ansible.builtin.set_fact:
+    mise_tools: >-
+      {{ software | intersect(['node','go','python','rust'])
+         | map('regex_replace', '^node$', 'node@lts')
+         | map('regex_replace', '^go$', 'go@latest')
+         | map('regex_replace', '^python$', 'python@latest')
+         | map('regex_replace', '^rust$', 'rust@latest')
+         | list }}
+
+- name: Install runtimes globally via mise
+  ansible.builtin.shell: "~/.local/bin/mise use -g {{ item }}"
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  loop: "{{ mise_tools }}"
+  register: mise_use
+  changed_when: "'installing' in (mise_use.stderr | default('') | lower)"
+
+- name: Upgrade runtimes via mise
+  ansible.builtin.shell: ~/.local/bin/mise upgrade -y
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  when: upgrade | bool
+  changed_when: true

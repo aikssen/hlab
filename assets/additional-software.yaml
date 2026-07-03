@@ -1,0 +1,40 @@
+# Catalog of optional software hlab can install on a VM via Ansible (milestone M2).
+# Runtimes are installed through mise, consistent with the dotfiles repo. If
+# dotfiles is NOT selected, the provisioner installs mise first so the runtimes
+# below can be managed.
+#
+# Each item: key (stable id), label (shown in the wizard), mise (runtime via mise).
+software:
+  - key: docker
+    label: Docker Engine
+    mise: false
+  - key: podman
+    label: Podman
+    mise: false
+  - key: k3s
+    label: K3s (lightweight Kubernetes)
+    mise: false
+  - key: node
+    label: Node.js (mise)
+    mise: true
+  - key: go
+    label: Go (mise)
+    mise: true
+  - key: python
+    label: Python (mise)
+    mise: true
+  - key: rust
+    label: Rust (mise)
+    mise: true
+  - key: claude-code
+    label: Claude Code (CLI)
+    mise: false
+  - key: opencode
+    label: Open Code (CLI)
+    mise: false
+  - key: hermes
+    label: Hermes agent (CLI)
+    mise: false
+  - key: dotfiles
+    label: Dotfiles (terminal environment)
+    mise: false

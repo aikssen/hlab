@@ -1,0 +1,67 @@
+# Color themes for hlab's dashboard TUI and CLI result boxes.
+#
+# This file is a seed: on first run hlab copies it to ~/.hlab/themes.yaml (honoring
+# $HLAB_HOME), which you can edit freely — add a theme, tweak a color, remove one.
+# hlab reads the on-disk copy, so changes take effect without rebuilding. In the
+# dashboard the `t` key re-reads this file, so edits appear the next time you open
+# the selector. Select the active theme with `t` in the TUI, `hlab theme <name>`,
+# or a `theme:` key in ~/.hlab/config.yaml.
+#
+# Each theme is a name plus ten semantic color roles. Every value is a lipgloss
+# color: an ANSI-256 code as a quoted number ("12", "240") — which respects the
+# terminal's own palette — or a truecolor hex ("#bd93f9"). Any field you omit falls
+# back to the `default` theme's value, so a custom theme can set just `accent`.
+# The three built-in themes below are always available even if this file is
+# deleted or broken; an unknown or empty name falls back to `default`.
+#
+#   accent    titles, selectors, focus, emphasis borders
+#   text      bright / primary text
+#   dim       descriptions, hints, muted borders
+#   good      success / selected / low-utilization gauge
+#   warn      warning / mid-utilization gauge
+#   bad       errors / high-utilization gauge
+#   track     rules and the unfilled part of a meter
+#   modal_bg  floating wizard-window background
+#   out_bg    embedded "terminal" output-box background
+#   out_fg    embedded "terminal" output-box foreground
+
+themes:
+  # default: the original ANSI-256 palette. Respects the terminal's own scheme.
+  - name: default
+    accent: "12"
+    text: "15"
+    dim: "8"
+    good: "10"
+    warn: "11"
+    bad: "9"
+    track: "240"
+    modal_bg: "#22262e"
+    out_bg: "#0d1117"
+    out_fg: "#d0d7de"
+
+  # dracula: the well-known truecolor scheme.
+  - name: dracula
+    accent: "#bd93f9"
+    text: "#f8f8f2"
+    dim: "#6272a4"
+    good: "#50fa7b"
+    warn: "#f1fa8c"
+    bad: "#ff5555"
+    track: "#44475a"
+    modal_bg: "#282a36"
+    out_bg: "#21222c"
+    out_fg: "#f8f8f2"
+
+  # mono: grayscale accent for accessibility, keeping the semantic good/warn/bad
+  # colors so status still reads at a glance. Modal/output colors match default.
+  - name: mono
+    accent: "15"
+    text: "7"
+    dim: "8"
+    good: "10"
+    warn: "11"
+    bad: "9"
+    track: "240"
+    modal_bg: "#22262e"
+    out_bg: "#0d1117"
+    out_fg: "#d0d7de"

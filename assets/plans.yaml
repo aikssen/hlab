@@ -1,0 +1,62 @@
+# Preconfigured VM plans (t-shirt sizes) offered when creating a VM.
+#
+# This file is a seed: on first run hlab copies it to ~/.config/hlab/plans.yaml,
+# which you can edit freely (add/remove plans, change sizes). hlab reads the
+# on-disk copy, so changes take effect without rebuilding.
+#
+# disk_gb must be >= the golden image's disk (currently 10 GB) — a clone cannot
+# shrink the template; hlab bumps a smaller value up automatically. Larger disks
+# grow on first boot (cloud-init / growpart). Storage is thin-provisioned, so a
+# bigger virtual disk only consumes the blocks actually written.
+#
+# nano is the minimum footprint: a tiny test/scratch VM, a bastion/jump host, or
+# a single-purpose lightweight service that needs VM (not LXC) isolation. It is
+# NOT meant for hlab's full provisioning (docker + mise runtimes + dotfiles) —
+# use KVM1 or larger for a real provisioned server.
+plans:
+  - name: nano
+    cores: 1
+    memory_gb: 1
+    disk_gb: 10
+  - name: KVM1
+    cores: 1
+    memory_gb: 2
+    disk_gb: 16
+  - name: KVM2
+    cores: 2
+    memory_gb: 4
+    disk_gb: 32
+  - name: KVM4
+    cores: 4
+    memory_gb: 8
+    disk_gb: 48
+  - name: KVM8
+    cores: 8
+    memory_gb: 16
+    disk_gb: 64
+
+# Preconfigured LXC container plans (t-shirt sizes) offered when creating a
+# container. Containers are far lighter than VMs (no hypervisor/kernel/bootloader),
+# so the tiers are smaller and memory is expressed in MB (sub-GB is normal).
+# Disks are thin-provisioned; a container's rootfs can be sized freely (there is
+# no template disk floor like there is for a cloned VM).
+#
+# micro is the practical default for most system services (DNS, reverse proxy,
+# monitoring agent). Going below 512 MB makes a container fragile during upgrades.
+lxc:
+  - name: micro
+    cores: 1
+    memory_mb: 512
+    disk_gb: 4
+  - name: small
+    cores: 1
+    memory_mb: 1024
+    disk_gb: 8
+  - name: medium
+    cores: 2
+    memory_mb: 2048
+    disk_gb: 16
+  - name: large
+    cores: 4
+    memory_mb: 4096
+    disk_gb: 32

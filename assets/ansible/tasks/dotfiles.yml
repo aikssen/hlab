@@ -1,0 +1,29 @@
+---
+# These tasks run as the connection user (become: false) so the forwarded SSH
+# agent (SSH_AUTH_SOCK) is preserved — sudo would strip it. Cloning a private
+# dotfiles repo then works via the operator's key, which stays on their machine.
+- name: Clone the dotfiles repository
+  ansible.builtin.git:
+    repo: "{{ dotfiles_repo }}"
+    dest: "~/dotfiles"
+    version: HEAD
+    update: true
+    # The server-side clone is a managed deployment artifact, not a working
+    # copy — bootstrap.sh dirties tracked files on every run, so a plain
+    # `update` (force=no) fails on the second provision/update with "Local
+    # modifications exist". Reset hard to the repo's HEAD: upstream is the
+    # source of truth, so re-provisioning is idempotent instead of erroring.
+    force: true
+  become: false
+  environment:
+    GIT_SSH_COMMAND: "ssh -o StrictHostKeyChecking=accept-new"
+    GIT_TERMINAL_PROMPT: "0"
+
+- name: Run dotfiles bootstrap (server profile)
+  ansible.builtin.shell: ./bootstrap.sh
+  args:
+    chdir: "~/dotfiles"
+  environment:
+    DOTFILES_PROFILE: server
+  become: false
+  changed_when: true

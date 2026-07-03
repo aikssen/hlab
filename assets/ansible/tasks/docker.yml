@@ -1,0 +1,24 @@
+---
+- name: Check whether Docker is installed
+  ansible.builtin.command: docker --version
+  register: docker_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Docker via the official convenience script
+  ansible.builtin.shell: curl -fsSL https://get.docker.com | sh
+  args:
+    creates: /usr/bin/docker
+  when: docker_check.rc != 0
+
+- name: Add the user to the docker group
+  ansible.builtin.user:
+    name: "{{ target_user }}"
+    groups: docker
+    append: true
+
+- name: Ensure Docker is enabled and running
+  ansible.builtin.systemd:
+    name: docker
+    enabled: true
+    state: started

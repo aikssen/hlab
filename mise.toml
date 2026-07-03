@@ -1,0 +1,12 @@
+# Toolchain for working on hlab. Run `mise install` to get the right versions.
+[tools]
+go = "1.26"
+terraform = "latest"
+
+[tasks.install]
+description = "Build hlab and install it to ~/.local/bin (re-run to update)"
+run = "./scripts/install.sh"
+
+[tasks.build]
+description = "Build the hlab binary into ./hlab"
+run = "go build -o hlab ."

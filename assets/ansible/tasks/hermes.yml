@@ -1,0 +1,22 @@
+---
+- name: Check whether Hermes agent is installed
+  ansible.builtin.shell: 'command -v hermes-agent || command -v hermes || test -x "$HOME/.local/bin/hermes"'
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  register: hermes_check
+  failed_when: false
+  changed_when: false
+
+- name: Install Hermes agent (official installer)
+  # Headless flags: skip the interactive setup wizard and the heavy
+  # Playwright/Chromium download (run `hermes` later to configure interactively).
+  ansible.builtin.shell: >-
+    curl -fsSL https://hermes-agent.nousresearch.com/install.sh
+    | bash -s -- --skip-setup --skip-browser --non-interactive
+  args:
+    executable: /bin/bash
+  become: true
+  become_user: "{{ target_user }}"
+  when: hermes_check.rc != 0 or (upgrade | bool)

@@ -1,0 +1,17 @@
+# Build output
+/hlab
+/dist/
+*.out
+
+# Go
+*.test
+*.prof
+
+# Local env
+.env
+
+# Local Claude Code agents / config and internal admin context (kept in the
+# private workspace, never in the public repo)
+.claude
+CLAUDE.md
+docs-internal/

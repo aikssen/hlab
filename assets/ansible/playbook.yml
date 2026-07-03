@@ -1,0 +1,117 @@
+---
+# Provisions a VM with the software recorded in its hlab declaration. Driven by
+# extra-vars rendered by hlab: software (list, may include "dotfiles"),
+# dotfiles_repo, target_user. Each block runs only when relevant, keeping runs
+# minimal.
+- name: Provision VM
+  hosts: all
+  become: true
+  gather_facts: true
+  vars:
+    software: []
+    dotfiles_repo: ""
+    target_user: "{{ ansible_user }}"
+    is_lxc: false
+    upgrade: false
+
+  tasks:
+    # On first boot cloud-init and unattended-upgrades hold the apt/dpkg lock.
+    # Wait them out so apt and the Docker script don't fail with lock errors.
+    # Minimal LXC templates ship without cloud-init, so detect it first and skip
+    # the wait cleanly rather than erroring on a missing command.
+    - name: Check for cloud-init
+      ansible.builtin.stat:
+        path: /usr/bin/cloud-init
+      register: cloud_init_bin
+
+    - name: Wait for cloud-init to finish
+      ansible.builtin.command: cloud-init status --wait
+      changed_when: false
+      failed_when: false
+      when: cloud_init_bin.stat.exists
+
+    - name: Wait for the apt/dpkg lock to be released
+      ansible.builtin.shell: |
+        timeout 300 bash -c '
+          while fuser /var/lib/dpkg/lock-frontend \
+                      /var/lib/apt/lists/lock \
+                      /var/cache/apt/archives/lock >/dev/null 2>&1; do
+            sleep 3
+          done'
+      changed_when: false
+
+    - name: Update apt cache
+      ansible.builtin.apt:
+        update_cache: true
+        cache_valid_time: 3600
+        lock_timeout: 300
+
+    - name: Upgrade apt packages (safe; not a dist-upgrade)
+      ansible.builtin.apt:
+        upgrade: safe
+        lock_timeout: 300
+      when: upgrade | bool
+
+    # LXC templates ship minimal — no git/curl/sudo/etc. Install a service-ready
+    # base set so provisioning (dotfiles clone + bootstrap.sh, curl|bash installers)
+    # works, matching the homelab's LXC standard. VM golden images already have
+    # these, so this is gated to containers to keep VM provisioning fast.
+    - name: Service-ready base packages (LXC)
+      ansible.builtin.apt:
+        name:
+          - git
+          - curl
+          - wget
+          - gnupg
+          - apt-transport-https
+          - ca-certificates
+          - sudo
+          - vim-tiny
+          - nano
+          - less
+          - bash-completion
+          - man-db
+          - manpages
+          - dnsutils
+          - htop
+        state: present
+        lock_timeout: 300
+      when: is_lxc | bool
+
+    - name: Docker Engine
+      ansible.builtin.include_tasks: tasks/docker.yml
+      when: "'docker' in software"
+
+    - name: Podman
+      ansible.builtin.include_tasks: tasks/podman.yml
+      when: "'podman' in software"
+
+    - name: K3s
+      ansible.builtin.include_tasks: tasks/k3s.yml
+      when: "'k3s' in software"
+
+    - name: Claude Code
+      ansible.builtin.include_tasks: tasks/claude-code.yml
+      when: "'claude-code' in software"
+
+    - name: Open Code
+      ansible.builtin.include_tasks: tasks/opencode.yml
+      when: "'opencode' in software"
+
+    - name: Hermes agent
+      ansible.builtin.include_tasks: tasks/hermes.yml
+      when: "'hermes' in software"
+
+    # mise is required for the language runtimes. dotfiles' bootstrap.sh also
+    # installs mise; installing it here is idempotent and covers the no-dotfiles case.
+    - name: mise (runtime manager)
+      ansible.builtin.include_tasks: tasks/mise.yml
+      when: "software | intersect(['node','go','python','rust']) | length > 0"
+
+    - name: Language runtimes via mise
+      ansible.builtin.include_tasks: tasks/runtimes.yml
+      when: "software | intersect(['node','go','python','rust']) | length > 0"
+
+    - name: Dotfiles (terminal environment)
+      ansible.builtin.include_tasks: tasks/dotfiles.yml
+      when: "'dotfiles' in software and dotfiles_repo | length > 0"
