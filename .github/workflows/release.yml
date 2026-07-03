@@ -43,3 +43,101 @@ jobs:
             dist/hlab_*
             dist/SHA256SUMS
           generate_release_notes: true
+
+  # Bumps the version, download URLs, and sha256 checksums in the
+  # aikssen/homebrew-tap formula (Formula/hlab.rb) to match this release, then
+  # commits and pushes to the tap's main branch.
+  #
+  # Requires a repo secret HOMEBREW_TAP_TOKEN: a fine-grained GitHub PAT with
+  # "Contents: read and write" permission on aikssen/homebrew-tap.
+  update-homebrew-tap:
+    needs: build
+    runs-on: ubuntu-latest
+    steps:
+      - name: Determine version
+        id: version
+        run: echo "version=${GITHUB_REF_NAME#v}" >> "$GITHUB_OUTPUT"
+
+      - name: Download release checksums
+        env:
+          GH_TOKEN: ${{ secrets.GITHUB_TOKEN }}
+        run: |
+          gh release download "$GITHUB_REF_NAME" --repo aikssen/hlab \
+            --pattern SHA256SUMS -O SHA256SUMS
+          cat SHA256SUMS
+
+      - name: Checkout homebrew-tap
+        uses: actions/checkout@v4
+        with:
+          repository: aikssen/homebrew-tap
+          token: ${{ secrets.HOMEBREW_TAP_TOKEN }}
+          path: homebrew-tap
+
+      - name: Update formula
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          python3 - <<'PY'
+          import os
+          import re
+
+          version = os.environ["VERSION"]
+          formula_path = "homebrew-tap/Formula/hlab.rb"
+
+          checksums = {}
+          with open("SHA256SUMS") as f:
+              for line in f:
+                  line = line.strip()
+                  if not line:
+                      continue
+                  sha, name = line.split(maxsplit=1)
+                  checksums[name.strip().lstrip("*")] = sha
+
+          with open(formula_path) as f:
+              content = f.read()
+
+          content = re.sub(
+              r'version "[^"]*"', f'version "{version}"', content, count=1
+          )
+
+          for os_name, arch in [
+              ("darwin", "amd64"),
+              ("darwin", "arm64"),
+              ("linux", "amd64"),
+              ("linux", "arm64"),
+          ]:
+              asset = f"hlab_{os_name}_{arch}"
+              sha = checksums.get(asset)
+              if not sha:
+                  raise SystemExit(f"missing checksum for {asset} in SHA256SUMS")
+
+              content = re.sub(
+                  rf'url "[^"]*/download/[^"]*/{asset}"',
+                  f'url "https://github.com/aikssen/hlab/releases/download/v{version}/{asset}"',
+                  content,
+              )
+              content = re.sub(
+                  rf'(url "[^"]*{asset}"\n\s*sha256 ")[^"]*(")',
+                  rf'\g<1>{sha}\g<2>',
+                  content,
+              )
+
+          with open(formula_path, "w") as f:
+              f.write(content)
+          PY
+          cat homebrew-tap/Formula/hlab.rb
+
+      - name: Commit and push
+        working-directory: homebrew-tap
+        env:
+          VERSION: ${{ steps.version.outputs.version }}
+        run: |
+          git config user.name "Ever Cifuentes"
+          git config user.email "aikssen@gmail.com"
+          if git diff --quiet; then
+            echo "No changes to commit"
+            exit 0
+          fi
+          git add Formula/hlab.rb
+          git commit -m "hlab ${VERSION}"
+          git push origin main
