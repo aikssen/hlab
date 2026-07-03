@@ -12,6 +12,8 @@ Run `hlab` with no arguments for the dashboard: a live view of your VMs and
 containers where create / provision / ssh / snapshot / destroy all happen inside the
 app. The `hlab vm …` and `hlab ct …` subcommands remain for scripting.
 
+**Site: [hlab.sh](https://hlab.sh)**
+
 
 ![hlab dashboard TUI](./docs/hlab-home.png)
 
@@ -36,6 +38,17 @@ app. The `hlab vm …` and `hlab ct …` subcommands remain for scripting.
   only needed for `provision`).
 
 ## Install
+
+### Homebrew (macOS / Linux)
+
+```bash
+brew install aikssen/tap/hlab
+```
+
+Installs and updates the release binary via the `aikssen/tap` tap (verified against
+the release's `SHA256SUMS`).
+
+### curl | bash
 
 The one-liner installs the latest release binary to `~/.local/bin` (idempotent —
 re-run to update; the download is verified against the release's `SHA256SUMS`):
@@ -144,6 +157,7 @@ default**, see the [full command reference](docs/commands.md).
 
 ## Documentation
 
+- [hlab.sh](https://hlab.sh) — project site.
 - [Command & flag reference](docs/commands.md) — every subcommand, flag, and adopt.
 - [Proxmox API token](docs/proxmox-token.md) — least-privilege role setup.
 - [LXC containers](docs/lxc.md) — templates, nesting, static IP, migration caveats.
