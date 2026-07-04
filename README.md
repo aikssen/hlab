@@ -15,7 +15,7 @@ app. The `hlab vm …` and `hlab ct …` subcommands remain for scripting.
 **Site: [hlab.sh](https://hlab.sh)**
 
 
-![hlab dashboard TUI](./docs/hlab-home.png)
+![hlab dashboard TUI](./docs/hlab-home.svg)
 
 
 ## Features

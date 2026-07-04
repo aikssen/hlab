@@ -26,9 +26,12 @@ import (
 // plans package. There is no cycle — config imports only internal/state, and
 // neither config, state nor assets import theme.
 
-// fileTheme is the on-disk representation of one theme: a name plus the ten
+// fileTheme is the on-disk representation of one theme: a name plus the
 // semantic color roles as strings (an ANSI-256 number like "12" or a hex like
-// "#bd93f9"). Any empty field falls back to the default palette's value.
+// "#bd93f9"). The original ten fields fall back to the github-dark palette's
+// value when empty; the five newer fields (below) chain-fallback against this
+// same theme's already-resolved palette instead, so an old ten-key file still
+// produces a coherent look — see palette() for the resolution order.
 type fileTheme struct {
 	Name    string `yaml:"name"`
 	Accent  string `yaml:"accent"`
@@ -41,6 +44,12 @@ type fileTheme struct {
 	ModalBG string `yaml:"modal_bg"`
 	OutBG   string `yaml:"out_bg"`
 	OutFG   string `yaml:"out_fg"`
+
+	Heading  string `yaml:"heading"`
+	Faint    string `yaml:"faint"`
+	Line     string `yaml:"line"`
+	LineSoft string `yaml:"line_soft"`
+	SelBG    string `yaml:"sel_bg"`
 }
 
 // themesDoc is the on-disk themes file: a list of themes under `themes:`.
@@ -48,18 +57,25 @@ type themesDoc struct {
 	Themes []fileTheme `yaml:"themes"`
 }
 
-// palette resolves a fileTheme into a full Palette, filling any empty color field
-// from the built-in default palette so a custom theme can set only the roles it
-// cares about (e.g. just accent).
+// palette resolves a fileTheme into a full Palette, filling any empty color
+// field from the built-in github-dark (default) palette so a custom theme can
+// set only the roles it cares about (e.g. just accent).
+//
+// The five newer roles (Heading/Faint/Line/LineSoft/SelBG) instead chain-fallback
+// against this SAME theme's already-resolved fields (Text/Dim/Track/Line/ModalBG
+// respectively), not against the default palette's — so an old ten-key
+// themes.yaml entry still yields a palette that's internally coherent (e.g. a
+// custom theme's Faint tracks its own Dim, not github-dark's). Line must be
+// resolved before LineSoft, since LineSoft falls back to Line's resolved value.
 func (ft fileTheme) palette() Palette {
-	d := palettes["default"]
+	d := palettes["github-dark"]
 	color := func(v string, fallback lipgloss.Color) lipgloss.Color {
 		if v = strings.TrimSpace(v); v != "" {
 			return lipgloss.Color(v)
 		}
 		return fallback
 	}
-	return Palette{
+	p := Palette{
 		Accent:  color(ft.Accent, d.Accent),
 		Text:    color(ft.Text, d.Text),
 		Dim:     color(ft.Dim, d.Dim),
@@ -71,6 +87,12 @@ func (ft fileTheme) palette() Palette {
 		OutBG:   color(ft.OutBG, d.OutBG),
 		OutFG:   color(ft.OutFG, d.OutFG),
 	}
+	p.Heading = color(ft.Heading, p.Text)
+	p.Faint = color(ft.Faint, p.Dim)
+	p.Line = color(ft.Line, p.Track)
+	p.LineSoft = color(ft.LineSoft, p.Line)
+	p.SelBG = color(ft.SelBG, p.ModalBG)
+	return p
 }
 
 // Set is a merged, name-keyed collection of palettes: the compiled-in built-ins
@@ -94,13 +116,18 @@ func (s *Set) set(name string, p Palette) {
 	s.byName[strings.ToLower(strings.TrimSpace(name))] = p
 }
 
-// Get returns the palette for name (case-insensitive, space-tolerant). An unknown
-// or empty name falls back to the default palette — theme selection never errors.
+// Get returns the palette for name (case-insensitive, space-tolerant). An
+// unknown or empty name falls back to github-dark (the merged set's entry, so
+// a user override of github-dark in themes.yaml is honored) — theme selection
+// never errors.
 func (s *Set) Get(name string) Palette {
 	if p, ok := s.byName[strings.ToLower(strings.TrimSpace(name))]; ok {
 		return p
 	}
-	return palettes["default"]
+	if p, ok := s.byName["github-dark"]; ok {
+		return p
+	}
+	return palettes["github-dark"]
 }
 
 // Has reports whether name is a known theme in the set (case-insensitive).
@@ -109,14 +136,20 @@ func (s *Set) Has(name string) bool {
 	return ok
 }
 
-// Names returns the sorted list of theme names in the set (built-ins + file
-// themes), so the TUI selector and `hlab theme` list them in a stable order.
+// Names returns the theme names in the set (built-ins + file themes):
+// github-dark (the default) first, then the rest sorted, so the TUI selector
+// and `hlab theme` list them in a stable order with the default on top.
 func (s *Set) Names() []string {
 	names := make([]string, 0, len(s.byName))
 	for n := range s.byName {
-		names = append(names, n)
+		if n != "github-dark" {
+			names = append(names, n)
+		}
 	}
 	sort.Strings(names)
+	if _, ok := s.byName["github-dark"]; ok {
+		return append([]string{"github-dark"}, names...)
+	}
 	return names
 }
 

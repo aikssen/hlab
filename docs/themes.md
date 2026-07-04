@@ -1,14 +1,15 @@
 # Themes
 
-The dashboard TUI and the CLI result boxes use a semantic color palette. Three
+The dashboard TUI and the CLI result boxes use a semantic color palette. Four
 themes ship built-in:
 
-- **`default`** — ANSI-256, respects your terminal's own color scheme.
-- **`dracula`** — truecolor.
+- **`github-dark`** — the default; matches the hlab.sh design tokens.
+- **`one-dark`** — Atom's One Dark, the most popular IDE color scheme.
+- **`dracula`** — the well-known truecolor scheme.
 - **`mono`** — grayscale accent, keeping the semantic good/warn/bad colors (an
-  accessibility option).
+  accessibility option); ANSI-256, respects your terminal's own scheme.
 
-An unknown or empty name falls back to `default`.
+An unknown or empty name falls back to `github-dark`.
 
 ## Switching the theme
 
@@ -23,10 +24,11 @@ An unknown or empty name falls back to `default`.
 Themes are **data, not code**: they live in `~/.hlab/themes.yaml` (seeded from a
 default on first use, honoring `$HLAB_HOME`). Edit a color or add your own theme
 and it works without rebuilding hlab — the `t` selector re-reads the file each time
-it opens. Each theme is a name plus ten semantic color roles; every value is a
+it opens. Each theme is a name plus fifteen semantic color roles; every value is a
 lipgloss color (an ANSI-256 code like `"12"` or a hex like `"#bd93f9"`). Any field
-you omit falls back to the `default` theme's value, so a custom theme can set just
-`accent`:
+you omit falls back to a sensible value (the `github-dark` theme's for the core
+roles, this same theme's related role for the newer ones — see the comments in
+`themes.yaml`), so a custom theme can set just `accent`:
 
 ```yaml
 themes:

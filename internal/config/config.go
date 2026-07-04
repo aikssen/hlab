@@ -56,7 +56,7 @@ type Config struct {
 
 	DotfilesRepo string `yaml:"dotfiles_repo,omitempty"` // optional dotfiles repo SSH URL; empty hides the dotfiles catalog entry
 
-	Theme string `yaml:"theme,omitempty"` // color theme (one of theme.Names(); empty = default). Unknown names fall back to default, no error.
+	Theme string `yaml:"theme,omitempty"` // color theme (one of theme.Names()). Empty/unknown falls back to github-dark, no error.
 }
 
 // Home returns hlab's home directory: $HLAB_HOME when set, else ~/.hlab. Every
