@@ -5,6 +5,22 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.1] - 2026-07-04
+
+### Added
+- **Windows binaries** — each release now publishes `hlab_windows_amd64.exe` and
+  `hlab_windows_arm64.exe`. The Terraform-driven surface works natively on Windows
+  (discovery, dashboard TUI, create/destroy, power, snapshots, migrate, adopt,
+  drift/`plan`, resize, git-versioned state) given `terraform` and `git` on `PATH`.
+  **Note:** software provisioning (`hlab vm provision` / `update`, `ct provision`)
+  uses Ansible, which does not run on native Windows — run those under WSL.
+
+### Fixed
+- **`hlab vm ssh` / `hlab ct ssh` on Windows** — the interactive SSH launch used
+  `syscall.Exec`, a no-op stub on Windows that returned "not supported by windows".
+  It now runs `ssh` as a stdio-inherited child on Windows (Win10+ ships the OpenSSH
+  client), while keeping process replacement on Unix.
+
 ## [0.10.0] - 2026-07-04
 
 ### Added

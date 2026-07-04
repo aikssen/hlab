@@ -7,7 +7,6 @@ import (
 	"slices"
 	"strconv"
 	"strings"
-	"syscall"
 	"text/tabwriter"
 	"time"
 
@@ -690,8 +689,9 @@ func runVMSSH(_ *cobra.Command, args []string) error {
 	if err != nil {
 		return fmt.Errorf("ssh not found in PATH")
 	}
-	// Replace this process with an interactive ssh session.
-	return syscall.Exec(bin, []string{"ssh", fmt.Sprintf("%s@%s", vm.Username, ip)}, os.Environ())
+	// Hand off to an interactive ssh session (see execSSH — process replacement
+	// on Unix, a stdio-inherited child on Windows).
+	return execSSH(bin, []string{"ssh", fmt.Sprintf("%s@%s", vm.Username, ip)})
 }
 
 func runVMStart(_ *cobra.Command, args []string) error {
