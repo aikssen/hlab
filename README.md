@@ -79,6 +79,19 @@ Ensure `~/.local/bin` is on your `PATH`.
 > Gatekeeper quarantines it — clear it with
 > `xattr -d com.apple.quarantine ./hlab`.
 
+### Windows
+
+Download `hlab_windows_amd64.exe` (or `hlab_windows_arm64.exe`) from the
+[Releases](https://github.com/aikssen/hlab/releases) page, rename it to `hlab.exe`,
+and put it on your `PATH`. hlab needs **`terraform`** and **`git`** on `PATH`; the
+interactive `hlab vm ssh` uses the OpenSSH client bundled with Windows 10+.
+
+> **Provisioning needs WSL:** `hlab vm provision` / `update` and `ct provision` drive
+> **Ansible**, which has no native Windows build — run those inside WSL. Everything
+> else (discovery, the dashboard, create/destroy, power, snapshots, migrate, adopt,
+> drift/`plan`, resize) works natively. The `scripts/install.sh` installer is bash;
+> on Windows download the `.exe` directly (or run the script under Git Bash/WSL).
+
 ## Quick start
 
 ```bash

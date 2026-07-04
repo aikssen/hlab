@@ -21,12 +21,14 @@ jobs:
         run: |
           mkdir -p dist
           VER="${GITHUB_REF_NAME}"
-          for os in linux darwin; do
+          for os in linux darwin windows; do
             for arch in amd64 arm64; do
-              echo "building hlab_${os}_${arch} (${VER})"
+              ext=""; [ "$os" = windows ] && ext=".exe"
+              out="dist/hlab_${os}_${arch}${ext}"
+              echo "building ${out} (${VER})"
               GOOS="$os" GOARCH="$arch" CGO_ENABLED=0 go build \
                 -ldflags "-X github.com/aikssen/hlab/cmd.Version=${VER}" \
-                -o "dist/hlab_${os}_${arch}" .
+                -o "$out" .
             done
           done
 

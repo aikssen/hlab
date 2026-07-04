@@ -10,7 +10,7 @@ import (
 // Version is the released version. It can be overridden at build time with:
 //
 //	go build -ldflags "-X github.com/aikssen/hlab/cmd.Version=v0.1.0"
-var Version = "v0.10.0"
+var Version = "v0.10.1"
 
 var versionCmd = &cobra.Command{
 	Use:   "version",

@@ -5,6 +5,10 @@ overview, see the [README](../README.md).
 
 VM and container subcommands accept a **name or a numeric ID**.
 
+> **Windows:** the Terraform-driven commands work natively; the Ansible-based ones
+> (`provision`, `update`) require WSL — Ansible has no native Windows build. See the
+> [README install notes](../README.md#windows).
+
 ## Commands
 
 | Command | What it does |
