@@ -5,11 +5,30 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.0] - 2026-07-04
 
 ### Added
 - **Homebrew** — install and update via the `aikssen/tap` Homebrew tap:
   `brew install aikssen/tap/hlab`.
+- **`github-dark` theme** — a new built-in truecolor palette matching the hlab.sh
+  design tokens, now the default (an unset or unknown `theme:` resolves to it, and
+  it lists first in the theme selector). The old ANSI `default` theme, which read
+  too close to `mono`, is replaced by **`one-dark`** (Atom's One Dark, the most
+  popular IDE color scheme). Themes gain five roles (`heading`, `faint`, `line`,
+  `line_soft`, `sel_bg`); existing `~/.hlab/themes.yaml` files keep working —
+  omitted new roles fall back to the same theme's resolved
+  `text`/`dim`/`track`/`line`/`modal_bg`.
+
+### Changed
+- **Dashboard redesign** — the guest tables now lead with a status dot (`●`
+  running / `○` stopped) and per-cell colors (bright names for running guests,
+  muted ids/details), show a 6-cell braille CPU meter and the declared memory per
+  row, and drop the STATUS text column (drift is a warn-colored `!` next to the
+  name). The selected row is a subtle background tint with a `▎` accent bar
+  instead of a solid block. The detail panel gains the status dot and quieter
+  lowercase labels; the cluster panel shows per-node guest counts (`K/N up`) and
+  an `online` tag; headers, section titles and the two-tone footer follow the
+  same visual language.
 
 ## [0.9.0] - 2026-07-03
 

@@ -7,12 +7,13 @@
 # the selector. Select the active theme with `t` in the TUI, `hlab theme <name>`,
 # or a `theme:` key in ~/.hlab/config.yaml.
 #
-# Each theme is a name plus ten semantic color roles. Every value is a lipgloss
-# color: an ANSI-256 code as a quoted number ("12", "240") — which respects the
-# terminal's own palette — or a truecolor hex ("#bd93f9"). Any field you omit falls
-# back to the `default` theme's value, so a custom theme can set just `accent`.
-# The three built-in themes below are always available even if this file is
-# deleted or broken; an unknown or empty name falls back to `default`.
+# Each theme is a name plus fifteen semantic color roles. Every value is a
+# lipgloss color: an ANSI-256 code as a quoted number ("12", "240") — which
+# respects the terminal's own palette — or a truecolor hex ("#bd93f9"). Any of
+# the first ten fields you omit falls back to the `github-dark` theme's value,
+# so a custom theme can set just `accent`. The built-in themes below are always
+# available even if this file is deleted or broken; an unknown or empty name
+# falls back to `github-dark`, the default.
 #
 #   accent    titles, selectors, focus, emphasis borders
 #   text      bright / primary text
@@ -24,20 +25,61 @@
 #   modal_bg  floating wizard-window background
 #   out_bg    embedded "terminal" output-box background
 #   out_fg    embedded "terminal" output-box foreground
+#
+# Five newer roles round out the palette. Unlike the ten above, an omitted
+# field here falls back to this SAME theme's already-resolved value (not
+# `github-dark`'s) — so an old ten-key theme still yields a coherent look with
+# zero edits:
+#
+#   heading    brightest text (running guest names, panel headings) — falls
+#              back to this theme's `text`
+#   faint      most muted text (ids, table headers, footer descriptions) —
+#              falls back to this theme's `dim`
+#   line       meter tracks / stronger rules — falls back to this theme's
+#              `track`
+#   line_soft  header underrule, soft panel borders — falls back to this
+#              theme's `line`
+#   sel_bg     selected-row background — falls back to this theme's
+#              `modal_bg`. Terminals have no alpha, so this MUST be a
+#              concrete, pre-blended color (e.g. the accent mixed ~10% over
+#              the modal background), not a translucent one.
 
 themes:
-  # default: the original ANSI-256 palette. Respects the terminal's own scheme.
-  - name: default
-    accent: "12"
-    text: "15"
-    dim: "8"
-    good: "10"
-    warn: "11"
-    bad: "9"
-    track: "240"
-    modal_bg: "#22262e"
+  # github-dark: hlab's default. Matches the hlab.sh landing page design tokens.
+  - name: github-dark
+    accent: "#58a6ff"
+    text: "#d0d7de"
+    dim: "#8b949e"
+    good: "#3fb950"
+    warn: "#d29922"
+    bad: "#f85149"
+    track: "#30363d"
+    modal_bg: "#161b22"
     out_bg: "#0d1117"
     out_fg: "#d0d7de"
+    heading: "#f0f6fc"
+    faint: "#6e7681"
+    line: "#30363d"
+    line_soft: "#21262d"
+    sel_bg: "#17273f"
+
+  # one-dark: Atom's One Dark, the most popular IDE color scheme.
+  - name: one-dark
+    accent: "#61afef"
+    text: "#abb2bf"
+    dim: "#7f848e"
+    good: "#98c379"
+    warn: "#e5c07b"
+    bad: "#e06c75"
+    track: "#3e4451"
+    modal_bg: "#2c313a"
+    out_bg: "#21252b"
+    out_fg: "#abb2bf"
+    heading: "#dcdfe4"
+    faint: "#5c6370"
+    line: "#3e4451"
+    line_soft: "#333842"
+    sel_bg: "#2e3947"
 
   # dracula: the well-known truecolor scheme.
   - name: dracula
@@ -51,9 +93,14 @@ themes:
     modal_bg: "#282a36"
     out_bg: "#21222c"
     out_fg: "#f8f8f2"
+    heading: "#f8f8f2"
+    faint: "#6272a4"
+    line: "#44475a"
+    line_soft: "#44475a"
+    sel_bg: "#33355c"
 
   # mono: grayscale accent for accessibility, keeping the semantic good/warn/bad
-  # colors so status still reads at a glance. Modal/output colors match default.
+  # colors so status still reads at a glance.
   - name: mono
     accent: "15"
     text: "7"
@@ -65,3 +112,8 @@ themes:
     modal_bg: "#22262e"
     out_bg: "#0d1117"
     out_fg: "#d0d7de"
+    heading: "7"
+    faint: "8"
+    line: "240"
+    line_soft: "240"
+    sel_bg: "#22262e"

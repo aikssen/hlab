@@ -50,10 +50,31 @@ func TestMetricsPanelSize(t *testing.T) {
 func TestMetricsPanelContent(t *testing.T) {
 	m := testMetricsModel(t)
 	v := m.metricsView()
-	for _, want := range []string{"CLUSTER", "pve1", "pve2", "cpu", "ram", "disk", "%", "⣿"} {
+	for _, want := range []string{"cluster", "pve1", "pve2", "cpu", "ram", "dsk", "%", "⣿"} {
 		if !strings.Contains(v, want) {
 			t.Errorf("metrics panel should contain %q\n%s", want, v)
 		}
+	}
+}
+
+// TestNodeGuestCounts checks the per-node {running, total} tally: templates are
+// excluded and only running guests count toward the first element.
+func TestNodeGuestCounts(t *testing.T) {
+	guests := []proxmox.Guest{
+		{Name: "a", Node: "pve1", Status: "running"},
+		{Name: "b", Node: "pve1", Status: "stopped"},
+		{Name: "c", Node: "pve2", Status: "running"},
+		{Name: "tmpl", Node: "pve1", Status: "stopped", Template: true},
+	}
+	got := nodeGuestCounts(guests)
+	if got["pve1"] != [2]int{1, 2} {
+		t.Errorf("pve1 count = %v, want [1 2]", got["pve1"])
+	}
+	if got["pve2"] != [2]int{1, 1} {
+		t.Errorf("pve2 count = %v, want [1 1]", got["pve2"])
+	}
+	if _, ok := got["pve3"]; ok {
+		t.Errorf("pve3 should have no entry, got %v", got["pve3"])
 	}
 }
 

@@ -38,10 +38,10 @@ func runTheme(_ *cobra.Command, args []string) error {
 	set, _ := theme.Load() // never nil: falls back to the built-ins on any error
 
 	// Resolve the active theme name to what actually renders (unknown/empty →
-	// default), so the list marker and the confirm box are honest.
+	// github-dark), so the list marker and the confirm box are honest.
 	active := strings.ToLower(strings.TrimSpace(cfg.Theme))
 	if !set.Has(active) {
-		active = "default"
+		active = "github-dark"
 	}
 
 	if len(args) == 0 {

@@ -1262,7 +1262,8 @@ func (m Model) dashboardView() string {
 	}
 	contentW := lipgloss.Width(body)
 
-	title := titleStyle.Render(" hlab — homelab ")
+	// Landing-page match: accent prompt char, bright title text.
+	title := accentStyle.Render("❯") + " " + titleStyle.Render("hlab — homelab")
 	if m.version != "" {
 		version := dimStyle.Render(m.version)
 		if pad := contentW - lipgloss.Width(title) - lipgloss.Width(version); pad > 2 {
@@ -1335,17 +1336,29 @@ func (m Model) managedSection(maxRows int) string {
 	}
 	for i := start; i < end; i++ {
 		vm := m.vms[i]
-		cells := []string{
-			vm.Name,
-			kindLabel(vm.Kind()),
-			fmt.Sprintf("%d", vm.VMID),
-			vm.Node,
-			fmt.Sprintf("%d/%s", vm.Cores, memShort(vm)),
-			managedIP(vm, m.ips),
-			statusCell(m.statuses[vm.Name], m.drift[vm.Name]),
-			provisioned(vm),
+		running := m.statuses[vm.Name] == "running"
+		selected := i == m.cursor
+		var bg lipgloss.Color
+		if selected {
+			bg = selBG
 		}
-		b.WriteString(rowLine(cells, managedCols, i == m.cursor, false))
+		cpuFrac := 0.0
+		if running {
+			cpuFrac = m.live[vm.Name].CPUFrac
+		}
+		cells := []cell{
+			gutterCell(selected),
+			dotCell(running),
+			nameCell(vm.Name, running, hasDrift(m.drift[vm.Name]), bg),
+			{text: kindLabel(vm.Kind()), style: dimStyle},
+			{text: fmt.Sprintf("%d", vm.VMID), style: faintStyle},
+			{text: vm.Node, style: dimStyle},
+			{pre: meterBarBG(cpuFrac, 6, bg)},
+			{text: memTag(declaredMemMB(vm)), style: dimStyle},
+			{text: managedIP(vm, m.ips), style: dimStyle},
+			{text: provisioned(vm), style: dimStyle},
+		}
+		b.WriteString(rowLine(cells, managedCols, bg))
 		if i < end-1 {
 			b.WriteString("\n")
 		}
@@ -1365,7 +1378,7 @@ func (m Model) discoveredSection(maxRows int) string {
 		return ""
 	}
 	var b strings.Builder
-	b.WriteString(sectionTitleStyle.Render("DISCOVERED"))
+	b.WriteString(sectionTitleStyle.Render("discovered"))
 	b.WriteString(dimStyle.Render("  not managed by hlab — power only"))
 	b.WriteByte('\n')
 	b.WriteString(headerLine(discoveredCols))
@@ -1384,19 +1397,29 @@ func (m Model) discoveredSection(maxRows int) string {
 	}
 	for i := start; i < end; i++ {
 		g := m.guests[i]
+		running := g.Status == "running"
 		selected := len(m.vms)+i == m.cursor
-		cells := []string{
-			g.Name,
-			kindLabel(g.Type),
-			fmt.Sprintf("%d", g.VMID),
-			g.Node,
-			fmt.Sprintf("%d/%dGB", g.Cores, g.MemMB/1024),
-			ipOrDashCell(g.IP),
-			statusOr(g.Status),
-			"",
+		var bg lipgloss.Color
+		if selected {
+			bg = selBG
 		}
-		// Dim discovered rows unless selected, to read as secondary/read-only.
-		b.WriteString(rowLine(cells, discoveredCols, selected, !selected))
+		// Discovered rows use the SAME per-cell styling as managed so both tables
+		// read identically; the "not managed" distinction stays in the section
+		// title and the empty provisioned column. Discovered guests never show a
+		// drift marker (hlab doesn't track their desired state).
+		cells := []cell{
+			gutterCell(selected),
+			dotCell(running),
+			nameCell(g.Name, running, false, bg),
+			{text: kindLabel(g.Type), style: dimStyle},
+			{text: fmt.Sprintf("%d", g.VMID), style: faintStyle},
+			{text: g.Node, style: dimStyle},
+			{pre: meterBarBG(g.CPUFrac, 6, bg)},
+			{text: memTag(g.MemMB), style: dimStyle},
+			{text: ipOrDashCell(g.IP), style: dimStyle},
+			{text: "", style: dimStyle},
+		}
+		b.WriteString(rowLine(cells, discoveredCols, bg))
 		if i < end-1 {
 			b.WriteString("\n")
 		}
@@ -1510,28 +1533,28 @@ func (m Model) detailView() string {
 			maxMB = g.MemMB
 		}
 		lines := []string{
-			labelStyle.Render("Name  ") + vm.Name,
-			labelStyle.Render("State ") + status,
-			labelStyle.Render("CPU   ") + cpuGauge(g.CPUFrac, running),
-			labelStyle.Render("RAM   ") + ramGauge(g.MemUsedMB, maxMB, running),
-			labelStyle.Render("Spec  ") + spec,
-			labelStyle.Render("Net   ") + net,
-			labelStyle.Render("User  ") + vm.Username,
-			labelStyle.Render("Prov  ") + provisioned(vm),
-			labelStyle.Render("Drift ") + driftLine(m.drift, vm.Name),
+			faintStyle.Render("name  ") + headingStyle.Render(vm.Name),
+			faintStyle.Render("state ") + statusDot(running) + " " + status,
+			faintStyle.Render("cpu   ") + cpuGauge(g.CPUFrac, running),
+			faintStyle.Render("ram   ") + ramGauge(g.MemUsedMB, maxMB, running),
+			faintStyle.Render("spec  ") + spec,
+			faintStyle.Render("net   ") + net,
+			faintStyle.Render("user  ") + vm.Username,
+			faintStyle.Render("prov  ") + provisioned(vm),
+			faintStyle.Render("drift ") + driftLine(m.drift, vm.Name),
 		}
 		return panelStyle.Render(strings.Join(lines, "\n"))
 	}
 	if g := m.selectedGuest(); g != nil {
 		running := g.Status == "running"
 		lines := []string{
-			labelStyle.Render("Name  ") + g.Name,
-			labelStyle.Render("State ") + statusOr(g.Status),
-			labelStyle.Render("CPU   ") + cpuGauge(g.CPUFrac, running),
-			labelStyle.Render("RAM   ") + ramGauge(g.MemUsedMB, g.MemMB, running),
-			labelStyle.Render("Type  ") + kindLabel(g.Type) + dimStyle.Render("  (not managed by hlab)"),
-			labelStyle.Render("Node  ") + g.Node,
-			labelStyle.Render("IP    ") + ipOrDashCell(g.IP),
+			faintStyle.Render("name  ") + headingStyle.Render(g.Name),
+			faintStyle.Render("state ") + statusDot(running) + " " + statusOr(g.Status),
+			faintStyle.Render("cpu   ") + cpuGauge(g.CPUFrac, running),
+			faintStyle.Render("ram   ") + ramGauge(g.MemUsedMB, g.MemMB, running),
+			faintStyle.Render("type  ") + kindLabel(g.Type) + dimStyle.Render("  (not managed by hlab)"),
+			faintStyle.Render("node  ") + g.Node,
+			faintStyle.Render("ip    ") + ipOrDashCell(g.IP),
 		}
 		return panelStyle.Render(strings.Join(lines, "\n"))
 	}
@@ -1560,21 +1583,31 @@ func (m Model) metricsView() string {
 	}
 
 	total, running := m.fleetCounts()
-	header := sectionTitleStyle.Render("CLUSTER") +
-		dimStyle.Render(fmt.Sprintf(" · %d guests · %d up", total, running))
+	// "cluster" header — accent (non-bold) label + faint summary, matching the
+	// landing mock's lowercase section language.
+	header := accentStyle.Render("cluster") +
+		faintStyle.Render(fmt.Sprintf(" · %d guests · %d up", total, running))
 	// "free" is a column title right-aligned over the per-node free-capacity values
 	// (so the word isn't repeated on every ram/disk line).
-	free := dimStyle.Render("free")
+	free := faintStyle.Render("free")
 	if pad := metricsBodyW - lipgloss.Width(header) - lipgloss.Width(free); pad >= 1 {
 		header += strings.Repeat(" ", pad) + free
 	}
 	lines := []string{header}
 
-	// One stacked block per node: name, then cpu/ram/disk meters.
+	// One stacked block per node: name, then cpu/ram/disk meters. The count
+	// covers the whole node — m.guests holds only discovered guests, so the
+	// managed ones (m.live) are appended before tallying.
 	stByNode := m.storageByNode()
+	all := make([]proxmox.Guest, 0, len(m.guests)+len(m.live))
+	all = append(all, m.guests...)
+	for _, g := range m.live {
+		all = append(all, g)
+	}
+	counts := nodeGuestCounts(all)
 	var body []string
 	for _, n := range m.metrics.Nodes {
-		body = append(body, nodeMetricBlock(n, primaryStorage(stByNode[n.Name]))...)
+		body = append(body, nodeMetricBlock(n, primaryStorage(stByNode[n.Name]), counts[n.Name])...)
 	}
 	// Fit the body to the panel height (9 rows: 1 header + 8 body).
 	const bodyMax = 8
@@ -1607,15 +1640,28 @@ func (m Model) fleetCounts() (total, running int) {
 	return total, running
 }
 
-// nodeMetricBlock renders one host node as a stacked block: the node name, then a
-// cpu/ram/disk meter line each. An offline node shows its status and no meters.
-// disk is the node's primary guest-backing storage (may be nil).
-func nodeMetricBlock(n proxmox.NodeMetric, disk *proxmox.StorageMetric) []string {
-	name := labelStyle.Render(n.Name)
+// nodeMetricBlock renders one host node as a stacked block: the node name line
+// (accent name, " online" when online, and a right-aligned "K/N up" guest count),
+// then a cpu/ram/disk meter line each. An offline node shows its status and no
+// meters. disk is the node's primary guest-backing storage (may be nil); count is
+// {running, total} guests on this node (from nodeGuestCounts).
+func nodeMetricBlock(n proxmox.NodeMetric, disk *proxmox.StorageMetric, count [2]int) []string {
+	name := accentStyle.Render(n.Name)
 	if n.Status != "" && n.Status != "online" {
 		return []string{name + " " + dimStyle.Render(n.Status)}
 	}
-	out := []string{name, meterLine("cpu", n.CPUFrac, 0, false)}
+	nameLine := name
+	if n.Status == "online" {
+		nameLine += faintStyle.Render(" online")
+	}
+	// Right-align "K/N up" for nodes that carry any guests, filling to metricsBodyW.
+	if count[1] > 0 {
+		up := faintStyle.Render(fmt.Sprintf("%d/%d up", count[0], count[1]))
+		if pad := metricsBodyW - lipgloss.Width(nameLine) - lipgloss.Width(up); pad >= 1 {
+			nameLine += strings.Repeat(" ", pad) + up
+		}
+	}
+	out := []string{nameLine, meterLine("cpu", n.CPUFrac, 0, false)}
 	if n.MemMaxMB > 0 {
 		memFrac := float64(n.MemUsedMB) / float64(n.MemMaxMB)
 		freeGB := int((n.MemMaxMB - n.MemUsedMB + 512) / 1024) // round MB→GB
@@ -1623,7 +1669,26 @@ func nodeMetricBlock(n proxmox.NodeMetric, disk *proxmox.StorageMetric) []string
 	}
 	if disk != nil && disk.TotalGB > 0 {
 		dFrac := float64(disk.UsedGB) / float64(disk.TotalGB)
-		out = append(out, meterLine("disk", dFrac, int(disk.TotalGB-disk.UsedGB), true))
+		out = append(out, meterLine("dsk", dFrac, int(disk.TotalGB-disk.UsedGB), true))
+	}
+	return out
+}
+
+// nodeGuestCounts tallies guests per host node (discovered + managed combined
+// by the caller), returning node name → {running, total}. Templates are
+// excluded (they are not real guests). Pure — unit-tested.
+func nodeGuestCounts(guests []proxmox.Guest) map[string][2]int {
+	out := map[string][2]int{}
+	for _, g := range guests {
+		if g.Template {
+			continue
+		}
+		c := out[g.Node]
+		c[1]++
+		if g.Status == "running" {
+			c[0]++
+		}
+		out[g.Node] = c
 	}
 	return out
 }
@@ -1708,6 +1773,15 @@ func pct(frac float64) int {
 // run the check if it hasn't been (or the entry was pruned), "in sync" for a
 // clean guest, or the drift state + diverging attributes (truncated to fit the
 // panel) otherwise.
+// statusDot returns the same power indicator the tables use — a filled ● (Good)
+// for a running guest, a hollow ○ (Faint) otherwise — for the detail State line.
+func statusDot(running bool) string {
+	if running {
+		return okStyle.Render("●")
+	}
+	return faintStyle.Render("○")
+}
+
 func driftLine(drift map[string]engine.DriftStatus, name string) string {
 	d, ok := drift[name]
 	if !ok {
@@ -1777,6 +1851,14 @@ func gaugeColor(frac float64) lipgloss.Color {
 // filled ones ⣿ (colored by level) and the rest ⡀ as a dim track. No brackets, so
 // it reads as one clean run. Whole-cell quantized (13 levels at width 12).
 func meterBar(frac float64, cells int) string {
+	return meterBarBG(frac, cells, "")
+}
+
+// meterBarBG renders the braille meter with an optional background baked
+// into both fill and track styles. lipgloss does not re-fill a background
+// behind nested styled spans (see the barOnStyle note), so composite cells
+// rendered onto a highlighted row must carry the bg in every span.
+func meterBarBG(frac float64, cells int, bg lipgloss.Color) string {
 	if frac < 0 {
 		frac = 0
 	}
@@ -1784,8 +1866,20 @@ func meterBar(frac float64, cells int) string {
 		frac = 1
 	}
 	on := int(frac*float64(cells) + 0.5)
-	fill := lipgloss.NewStyle().Foreground(gaugeColor(frac)).Render(strings.Repeat("⣿", on))
-	return fill + dimStyle.Render(strings.Repeat("⡀", cells-on))
+	fillStyle := lipgloss.NewStyle().Foreground(gaugeColor(frac))
+	trackStyle := lineStyle
+	if bg != "" {
+		fillStyle = fillStyle.Background(bg)
+		trackStyle = trackStyle.Background(bg)
+	}
+	var b strings.Builder
+	if on > 0 {
+		b.WriteString(fillStyle.Render(strings.Repeat("⣿", on)))
+	}
+	if cells-on > 0 {
+		b.WriteString(trackStyle.Render(strings.Repeat("⡀", cells-on)))
+	}
+	return b.String()
 }
 
 // humanUptime formats a boot age in seconds as a short "3d4h" / "5h12m" / "8m".
@@ -1811,9 +1905,15 @@ func (m Model) footerView() string {
 		return dimStyle.Render("  working… please wait") + "\n"
 	}
 	// Context-sensitive: a discovered guest only exposes power actions.
-	full := "  ↑/↓ move · n new · p provision · s ssh · b power · r reboot · ? keybindings · q quit"
+	hints := []keyHint{
+		{"↑/↓", "move"}, {"n", "new"}, {"p", "provision"}, {"s", "ssh"},
+		{"b", "power"}, {"r", "reboot"}, {"?", "keybindings"}, {"q", "quit"},
+	}
 	if m.selectedGuest() != nil {
-		full = "  ↑/↓ move · a adopt · b start/stop · r reboot · n new · ? keybindings · q quit"
+		hints = []keyHint{
+			{"↑/↓", "move"}, {"a", "adopt"}, {"b", "start/stop"}, {"r", "reboot"},
+			{"n", "new"}, {"?", "keybindings"}, {"q", "quit"},
+		}
 	}
 	var status string
 	switch {
@@ -1824,7 +1924,22 @@ func (m Model) footerView() string {
 	case m.status != "":
 		status = okStyle.Render("  " + m.status)
 	}
-	return status + "\n" + dimStyle.Render(full)
+	return status + "\n" + renderHints(hints)
+}
+
+// keyHint is one footer keybinding: a key and what it does. Rendered two-tone —
+// the key in dimStyle (slightly brighter), the description in faintStyle — to
+// match the landing mock's legend.
+type keyHint struct{ key, desc string }
+
+// renderHints renders a keyHint slice as "  ↑/↓ move · n new · …", the key one
+// step brighter than its description and the " · " separators faint.
+func renderHints(hints []keyHint) string {
+	parts := make([]string, len(hints))
+	for i, h := range hints {
+		parts[i] = dimStyle.Render(h.key) + " " + faintStyle.Render(h.desc)
+	}
+	return "  " + strings.Join(parts, faintStyle.Render(" · "))
 }
 
 // selectedVM returns the managed VM under the cursor, or nil if the cursor is on
@@ -1862,17 +1977,22 @@ type colSpec struct {
 }
 
 var (
+	// The dashboard table columns (sum == 89, the tableWidth invariant the layout
+	// math relies on). Two leading title-less columns render the selection gutter
+	// (an accent "▎") and a power dot (● running / ○ stopped); the STATUS text
+	// column was dropped — power now reads from the dot + name brightness, and drift
+	// from a "!" suffix on the name.
 	managedCols = []colSpec{
-		{"NAME", 17}, {"KIND", 5}, {"ID", 6}, {"NODE", 9}, {"CPU/RAM", 8},
-		{"IP", 15}, {"STATUS", 9}, {"PROVISIONED", 20},
+		{"", 1}, {"", 2}, {"name", 16}, {"kind", 5}, {"id", 6}, {"node", 9},
+		{"cpu", 9}, {"mem", 7}, {"ip", 15}, {"provisioned", 19},
 	}
 	// Discovered uses the SAME columns as managed so the two tables line up under a
 	// centered layout. IP is resolved best-effort (agent / LXC namespace); the
-	// PROVISIONED column is shown for alignment but stays blank (hlab does not
+	// provisioned column is shown for alignment but stays blank (hlab does not
 	// provision unmanaged guests).
 	discoveredCols = []colSpec{
-		{"NAME", 17}, {"KIND", 5}, {"ID", 6}, {"NODE", 9}, {"CPU/RAM", 8},
-		{"IP", 15}, {"STATUS", 9}, {"PROVISIONED", 20},
+		{"", 1}, {"", 2}, {"name", 16}, {"kind", 5}, {"id", 6}, {"node", 9},
+		{"cpu", 9}, {"mem", 7}, {"ip", 15}, {"provisioned", 19},
 	}
 )
 
@@ -1901,27 +2021,54 @@ func ruleLine(cols []colSpec) string {
 	return tableRuleStyle.Render(strings.Repeat("─", tableWidth(cols)))
 }
 
-// rowLine renders one data row at full table width (no trailing trim) so columns
-// stay aligned when the whole dashboard is centered; selected highlights it with
-// a full-width bar, dim renders it muted.
-func rowLine(cells []string, cols []colSpec, selected, dim bool) string {
+// cell is one table cell: plain text plus a foreground style, or (for
+// composite content like a braille meter) a pre-styled ANSI string in pre.
+type cell struct {
+	text  string
+	style lipgloss.Style
+	pre   string // when non-empty, already-styled content; bg must be baked in by the caller
+}
+
+// rowLine renders one table row: each cell padded to its column width, with
+// bg (zero value = none) composed into every span — cell text AND padding —
+// so a selected row reads as a full-width highlight while each cell keeps
+// its own foreground. Columns are joined with no separator (each width already
+// includes its trailing spacing) so the total row width stays tableWidth(cols).
+func rowLine(cells []cell, cols []colSpec, bg lipgloss.Color) string {
 	var b strings.Builder
-	for i, c := range cols {
-		v := ""
+	for i, col := range cols {
+		var c cell
 		if i < len(cells) {
-			v = cells[i]
+			c = cells[i]
 		}
-		b.WriteString(padCell(v, c.w))
+		if c.pre != "" {
+			// Pre-styled content: measure/truncate ANSI-aware, then pad with
+			// bg-carrying spaces (the caller already baked bg into c.pre).
+			content := c.pre
+			if ansi.StringWidth(content) > col.w {
+				content = ansi.Truncate(content, col.w, "…")
+			}
+			b.WriteString(content)
+			if padN := col.w - ansi.StringWidth(content); padN > 0 {
+				if bg != "" {
+					b.WriteString(lipgloss.NewStyle().Background(bg).Render(strings.Repeat(" ", padN)))
+				} else {
+					b.WriteString(strings.Repeat(" ", padN))
+				}
+			}
+			continue
+		}
+		// Simple cell: pad the PLAIN text first (so truncation/pad math never
+		// sees ANSI), then render with the cell's fg plus the row bg. The pad
+		// spaces are inside Render, so they carry the bg too.
+		padded := padCell(c.text, col.w)
+		st := c.style
+		if bg != "" {
+			st = st.Background(bg)
+		}
+		b.WriteString(st.Render(padded))
 	}
-	line := b.String()
-	switch {
-	case selected:
-		return selectedRowStyle.Render(line)
-	case dim:
-		return dimStyle.Render(line)
-	default:
-		return line
-	}
+	return b.String()
 }
 
 // padCell truncates (with an ellipsis) or right-pads s to exactly w columns. A
@@ -1984,17 +2131,65 @@ func statusOr(s string) string {
 	return s
 }
 
-// statusCell renders the STATUS column for a managed VM: the power status, plus
-// a plain-ASCII " !" suffix when the last drift check (key P) found real drift
-// for this guest. Kept plain (no lipgloss color) because padCell measures runes
-// — an ANSI-colored cell would break the fixed-width column alignment. STATUS is
-// 9 columns wide; "running !" is exactly 9.
-func statusCell(status string, d engine.DriftStatus) string {
-	cell := statusOr(status)
-	if d.State != "" && d.State != "in-sync" {
-		cell += " !"
+// hasDrift reports whether the last drift check (key P) found real drift for a
+// guest — the signal for the NAME cell's "!" marker.
+func hasDrift(d engine.DriftStatus) bool {
+	return d.State != "" && d.State != "in-sync"
+}
+
+// gutterCell renders the 1-wide leading selection gutter: an accent "▎" bar on
+// the selected row, a blank otherwise.
+func gutterCell(selected bool) cell {
+	if selected {
+		return cell{text: "▎", style: accentStyle}
 	}
-	return cell
+	return cell{text: " "}
+}
+
+// dotCell renders the 2-wide power indicator: a filled "●" (Good) for a running
+// guest, a hollow "○" (Faint) for a stopped/unknown one.
+func dotCell(running bool) cell {
+	if running {
+		return cell{text: "●", style: okStyle}
+	}
+	return cell{text: "○", style: faintStyle}
+}
+
+// nameCell builds the NAME cell (column width 16): bright (heading) for a running
+// guest, muted (dim) otherwise. When the guest has drifted it becomes a pre-styled
+// cell — the (truncated) name followed by a Warn "!" — with the selected-row bg
+// baked into every span so the highlight is unbroken.
+func nameCell(name string, running, drifted bool, bg lipgloss.Color) cell {
+	nameStyle := dimStyle
+	if running {
+		nameStyle = headingStyle
+	}
+	if !drifted {
+		return cell{text: name, style: nameStyle}
+	}
+	ns, ws := nameStyle, warnStyle
+	if bg != "" {
+		ns, ws = ns.Background(bg), ws.Background(bg)
+	}
+	// Reserve " !" (2 cols) inside the 16-wide name column; rowLine pads the rest.
+	trunc := name
+	if ansi.StringWidth(trunc) > 14 {
+		trunc = ansi.Truncate(trunc, 13, "…") + " "
+	}
+	return cell{pre: ns.Render(trunc+" ") + ws.Render("!")}
+}
+
+// memTag renders a declared memory size compactly with a single-letter suffix:
+// whole gigabytes as "4G", sub-GB sizes as "512M". Zero/unknown → "—".
+func memTag(mb int) string {
+	switch {
+	case mb <= 0:
+		return "—"
+	case mb%1024 == 0:
+		return fmt.Sprintf("%dG", mb/1024)
+	default:
+		return fmt.Sprintf("%dM", mb)
+	}
 }
 
 func provisioned(vm *state.VMSpec) string {
@@ -2018,7 +2213,6 @@ var active = theme.Get("")
 // palette), so every color flows from the active palette rather than a literal.
 var (
 	titleStyle lipgloss.Style
-	labelStyle lipgloss.Style
 	dimStyle   lipgloss.Style
 	okStyle    lipgloss.Style
 	errStyle   lipgloss.Style
@@ -2036,12 +2230,28 @@ var (
 	sectionTitleStyle lipgloss.Style
 	tableHeaderStyle  lipgloss.Style
 	tableRuleStyle    lipgloss.Style
-	selectedRowStyle  lipgloss.Style
 	// Bar styles carry the modal background so the bar line reads as one solid
 	// piece (lipgloss does not refill the background behind already-styled spans,
 	// which otherwise looks like selected text).
 	barOnStyle  lipgloss.Style
 	barOffStyle lipgloss.Style
+
+	// headingStyle is the brightest text role (running guest names, panel
+	// headings) — brightness alone reads as emphasis, no bold.
+	headingStyle lipgloss.Style
+	// accentStyle is a plain (non-bold) accent foreground — the selection gutter bar.
+	accentStyle lipgloss.Style
+	// warnStyle is the warning foreground (the drift "!" marker on a name).
+	warnStyle lipgloss.Style
+	// faintStyle is the most muted text role (ids, table headers, footer
+	// descriptions).
+	faintStyle lipgloss.Style
+	// lineStyle colors meter tracks and stronger rules.
+	lineStyle lipgloss.Style
+	// selBG is the selected-row background, a concrete pre-blended color composed
+	// into per-cell styles (not a Style itself, since it's combined with other
+	// foregrounds cell by cell).
+	selBG lipgloss.Color
 
 	// modalStyle is the floating wizard window centered over the dashboard.
 	modalStyle lipgloss.Style
@@ -2063,22 +2273,28 @@ var (
 func initStyles(p theme.Palette) {
 	active = p
 
-	titleStyle = lipgloss.NewStyle().Bold(true).
-		Foreground(p.Text).Background(p.Accent).Padding(0, 1)
-	labelStyle = lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
+	// The title text next to the accent "❯" prompt char — bright, like the
+	// landing page's hero title.
+	titleStyle = lipgloss.NewStyle().Foreground(p.Heading).Bold(true)
 	dimStyle = lipgloss.NewStyle().Foreground(p.Dim)
 	okStyle = lipgloss.NewStyle().Foreground(p.Good)
 	errStyle = lipgloss.NewStyle().Foreground(p.Bad)
 	panelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(p.Dim).Padding(0, 1).Width(46).Height(9)
+		BorderForeground(p.LineSoft).Padding(0, 1).Width(46).Height(9)
 	metricsPanelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(p.Dim).Padding(0, 1).Width(metricsInnerW).Height(9)
+		BorderForeground(p.LineSoft).Padding(0, 1).Width(metricsInnerW).Height(9)
 	sectionTitleStyle = lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
-	tableHeaderStyle = lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
-	tableRuleStyle = lipgloss.NewStyle().Foreground(p.Track)
-	selectedRowStyle = lipgloss.NewStyle().Foreground(p.Text).Background(p.Accent).Bold(true)
+	tableHeaderStyle = lipgloss.NewStyle().Foreground(p.Faint)
+	tableRuleStyle = lipgloss.NewStyle().Foreground(p.LineSoft)
 	barOnStyle = lipgloss.NewStyle().Foreground(p.Accent).Background(p.ModalBG)
 	barOffStyle = lipgloss.NewStyle().Foreground(p.Track).Background(p.ModalBG)
+
+	headingStyle = lipgloss.NewStyle().Foreground(p.Heading)
+	accentStyle = lipgloss.NewStyle().Foreground(p.Accent)
+	warnStyle = lipgloss.NewStyle().Foreground(p.Warn)
+	faintStyle = lipgloss.NewStyle().Foreground(p.Faint)
+	lineStyle = lipgloss.NewStyle().Foreground(p.Line)
+	selBG = p.SelBG
 
 	modalStyle = lipgloss.NewStyle().
 		Border(lipgloss.RoundedBorder()).
