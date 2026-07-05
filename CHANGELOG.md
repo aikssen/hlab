@@ -5,6 +5,24 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [0.10.2] - 2026-07-05
+
+### Added
+- **Editable LXC swap** — swap is now adjustable after creation, not just at
+  `ct create` time: the dashboard edit form (`e`) shows a "Swap (MB)" field for
+  containers (right after memory), and the CLI gains `hlab ct resize --swap <MB>`.
+  Swap isn't part of any plan, so it stays editable whether a named plan or Custom
+  is selected. VMs are unaffected — QEMU VMs have no hypervisor-level swap.
+
+### Changed
+- **Dashboard shows real VM memory usage** — the RAM gauge in the guest detail
+  panel now reflects the guest's own accounting (read from `/proc/meminfo` via the
+  QEMU guest agent: `MemTotal - MemAvailable`), instead of the hypervisor's balloon
+  figure. The balloon figure counts reclaimable page cache as "used", so a healthy
+  Linux VM read near-full (e.g. 89%) while the guest itself was at ~39%. It falls
+  back to the balloon figure for containers (no QEMU agent) or when the agent is
+  unavailable; the gauge format is unchanged.
+
 ## [0.10.1] - 2026-07-04
 
 ### Added

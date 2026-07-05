@@ -52,7 +52,7 @@ VM and container subcommands accept a **name or a numeric ID**.
 | `hlab ct show <name\|id>` | Show one container's details. |
 | `hlab ct start\|stop\|reboot\|destroy\|provision\|ssh <name\|id>` | Same lifecycle/day-2 verbs as VMs, for containers. |
 | `hlab ct snapshot\|snapshots\|rollback\|snapshot-delete <name\|id> [snap]` | Snapshot a container (no RAM state — containers have none). |
-| `hlab ct resize <name\|id>` | Change a container's CPU / RAM / disk (`--cores`, `--memory`, `--disk`, `--plan`; disk grows only). |
+| `hlab ct resize <name\|id>` | Change a container's CPU / RAM / swap / disk (`--cores`, `--memory`, `--swap`, `--disk`, `--plan`; disk grows only). |
 | `hlab ct migrate <name\|id> --to <node>` | Migrate a container to another node (via the Proxmox API; a running one is restarted). |
 | `hlab ct adopt <vmid\|name>` | Bring a discovered (unmanaged) container under hlab's control (`--name`, `-y/--yes`). Never modifies the live container — see [Adopting existing guests](#adopting-existing-guests). |
 | `hlab ct update <name\|id>` | Same as `hlab vm update`, for containers. |
