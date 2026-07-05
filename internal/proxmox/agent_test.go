@@ -9,6 +9,57 @@ import (
 	"testing"
 )
 
+// TestParseMeminfo uses the real /proc/meminfo of test VM 6500: the balloon figure
+// (Total-Free) reads ~89% used, but the honest figure (Total-Available) is ~39% —
+// the difference being ~3.5 GB of reclaimable page cache.
+func TestParseMeminfo(t *testing.T) {
+	const meminfo = `MemTotal:        6062116 kB
+MemFree:          451112 kB
+MemAvailable:    3677420 kB
+Buffers:          217564 kB
+Cached:          2998660 kB
+SReclaimable:     120000 kB
+SwapTotal:             0 kB
+SwapFree:              0 kB`
+	gm, err := parseMeminfo(meminfo)
+	if err != nil {
+		t.Fatalf("parseMeminfo: %v", err)
+	}
+	if gm.TotalMB != 6062116/1024 { // 5920
+		t.Errorf("TotalMB = %d, want %d", gm.TotalMB, 6062116/1024)
+	}
+	// Used is Total-Available (2384696 kB), NOT Total-Free — cache stays out of used.
+	if want := (6062116 - 3677420) / 1024; gm.UsedMB != want { // 2328
+		t.Errorf("UsedMB = %d, want %d (Total-Available, not Total-Free)", gm.UsedMB, want)
+	}
+	if want := 3677420 / 1024; gm.AvailMB != want {
+		t.Errorf("AvailMB = %d, want %d", gm.AvailMB, want)
+	}
+	if want := (217564 + 2998660 + 120000) / 1024; gm.CacheMB != want {
+		t.Errorf("CacheMB = %d, want %d", gm.CacheMB, want)
+	}
+	// The honest usage is ~39%, a world away from the balloon's ~89%.
+	if frac := float64(gm.UsedMB) / float64(gm.TotalMB); frac < 0.37 || frac > 0.41 {
+		t.Errorf("used fraction = %.2f, want ~0.39", frac)
+	}
+}
+
+// TestParseMeminfoNoMemAvailable exercises the pre-3.14 fallback (MemFree+Buffers+
+// Cached) and the missing-MemTotal error.
+func TestParseMeminfoNoMemAvailable(t *testing.T) {
+	gm, err := parseMeminfo("MemTotal: 1048576 kB\nMemFree: 262144 kB\nBuffers: 131072 kB\nCached: 131072 kB")
+	if err != nil {
+		t.Fatalf("parseMeminfo: %v", err)
+	}
+	// avail = 262144+131072+131072 = 524288 kB → used = 524288 kB = 512 MB.
+	if gm.UsedMB != 512 {
+		t.Errorf("UsedMB = %d, want 512 (fallback avail = free+buffers+cached)", gm.UsedMB)
+	}
+	if _, err := parseMeminfo("Bogus: 1 kB"); err == nil {
+		t.Error("parseMeminfo without MemTotal should error")
+	}
+}
+
 // TestAgentCommandValues pins the PVE 8+ array encoding: each argv element is a
 // separate repeated `command` field, and input-data is a single plain field.
 func TestAgentCommandValues(t *testing.T) {

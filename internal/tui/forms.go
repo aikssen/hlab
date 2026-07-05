@@ -695,7 +695,8 @@ type editBinding struct {
 	lxc                       bool // container: memory is MB, uses the LXC plan catalog
 	planName                  string
 	coresStr, memStr, diskStr string
-	minDisk                   int // the current disk size; the disk can only grow
+	swapStr                   string // LXC only: swap in MB (independent of the plan)
+	minDisk                   int    // the current disk size; the disk can only grow
 	confirm                   bool
 }
 
@@ -725,6 +726,7 @@ func newEditBinding(vm *state.VMSpec) *editBinding {
 		coresStr: strconv.Itoa(vm.Cores),
 		memStr:   memStr,
 		diskStr:  strconv.Itoa(vm.DiskGB),
+		swapStr:  strconv.Itoa(vm.SwapMB), // LXC only; ignored for VMs
 		minDisk:  vm.DiskGB,
 	}
 	if b.planName == "" {
@@ -748,6 +750,12 @@ func newEditBinding(vm *state.VMSpec) *editBinding {
 			huh.NewInput().Title("Disk (GB)").Description("Can only grow.").
 				Value(&b.diskStr).Validate(b.validateDiskGrow),
 		).WithHideFunc(func() bool { return b.planName != plans.Custom }),
+		// Swap is an LXC-only knob and isn't part of any plan, so it stays editable
+		// whether a named plan or Custom is selected (it flows right after memory).
+		huh.NewGroup(
+			huh.NewInput().Title("Swap (MB)").Description("0 = none. Container swap; not set by any plan.").
+				Value(&b.swapStr).Validate(validateNonNegInt),
+		).WithHideFunc(func() bool { return !b.lxc }),
 		huh.NewGroup(
 			huh.NewConfirm().Title("Apply these changes?").Value(&b.confirm),
 		),
@@ -808,6 +816,11 @@ func (b *editBinding) apply(vm *state.VMSpec) {
 	}
 	if vm.DiskGB < b.minDisk {
 		vm.DiskGB = b.minDisk // a plan smaller than the current disk still can't shrink it
+	}
+	// Swap is LXC-only and plan-independent, so it's taken from the field regardless
+	// of whether a named plan or Custom was chosen.
+	if b.lxc {
+		vm.SwapMB = atoiSafe(b.swapStr)
 	}
 }
 

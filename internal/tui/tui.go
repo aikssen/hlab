@@ -138,6 +138,12 @@ type Model struct {
 	// for VMs that no longer exist are pruned on the next loadedMsg.
 	drift        map[string]engine.DriftStatus
 	driftSummary string
+
+	// realMem is the guest's own memory accounting (guest-agent /proc/meminfo) for
+	// running managed VMs, keyed by name. The detail panel prefers this over the
+	// balloon figure Proxmox reports (which counts reclaimable page cache as used).
+	// Best-effort and last-good: a transient agent failure keeps the prior reading.
+	realMem map[string]proxmox.GuestMem
 }
 
 // loadedMsg carries a fresh snapshot: managed VMs (IPs + power status) and the
@@ -320,6 +326,48 @@ func (m Model) resolveGuestIPs(vms []*state.VMSpec, statuses map[string]string, 
 	}
 }
 
+// guestMemMsg carries the real (guest-agent) memory readings for running managed
+// VMs, keyed by name, resolved off-paint after a snapshot.
+type guestMemMsg struct {
+	mem map[string]proxmox.GuestMem
+}
+
+// resolveGuestMem reads real memory usage from inside each running managed VM via
+// the QEMU guest agent, concurrently and off-paint (best-effort, like
+// resolveGuestIPs). Containers are skipped — they have no QEMU agent — so the
+// detail panel keeps the balloon figure for LXC. A per-VM failure just omits that
+// VM from the result; the model keeps its last-good reading.
+func (m Model) resolveGuestMem(vms []*state.VMSpec, statuses map[string]string) tea.Cmd {
+	pm := m.pm
+	return func() tea.Msg {
+		out := map[string]proxmox.GuestMem{}
+		if pm == nil {
+			return guestMemMsg{mem: out}
+		}
+		var mu sync.Mutex
+		var wg sync.WaitGroup
+		sem := make(chan struct{}, 8) // be polite to the Proxmox API
+		for _, vm := range vms {
+			if vm.IsLXC() || statuses[vm.Name] != "running" {
+				continue
+			}
+			wg.Add(1)
+			go func(vm *state.VMSpec) {
+				defer wg.Done()
+				sem <- struct{}{}
+				defer func() { <-sem }()
+				if gm, err := pm.GuestMemory(vm.Node, vm.VMID); err == nil && gm.TotalMB > 0 {
+					mu.Lock()
+					out[vm.Name] = gm
+					mu.Unlock()
+				}
+			}(vm)
+		}
+		wg.Wait()
+		return guestMemMsg{mem: out}
+	}
+}
+
 // refreshTickMsg drives the periodic dashboard refresh.
 type refreshTickMsg struct{}
 
@@ -383,7 +431,32 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		if n := m.rowCount(); m.cursor >= n {
 			m.cursor = max(n-1, 0)
 		}
-		return m, tea.Batch(m.resolveGuestIPs(msg.vms, msg.statuses, msg.discovered), m.fetchMetrics())
+		return m, tea.Batch(
+			m.resolveGuestIPs(msg.vms, msg.statuses, msg.discovered),
+			m.resolveGuestMem(msg.vms, msg.statuses),
+			m.fetchMetrics(),
+		)
+
+	case guestMemMsg:
+		if m.realMem == nil {
+			m.realMem = map[string]proxmox.GuestMem{}
+		}
+		// Merge (last-good): a VM missing from this round keeps its prior reading, so
+		// a transient agent blip doesn't flip the gauge back to the balloon figure.
+		maps.Copy(m.realMem, msg.mem)
+		// Prune readings for VMs that no longer exist so the map can't grow unbounded.
+		if len(m.realMem) > 0 {
+			current := make(map[string]bool, len(m.vms))
+			for _, vm := range m.vms {
+				current[vm.Name] = true
+			}
+			for name := range m.realMem {
+				if !current[name] {
+					delete(m.realMem, name)
+				}
+			}
+		}
+		return m, nil
 
 	case guestIPsMsg:
 		maps.Copy(m.ips, msg.lxc)
@@ -1527,16 +1600,23 @@ func (m Model) detailView() string {
 		if vm.Plan != "" {
 			spec = vm.Plan + " · " + spec
 		}
-		// Live RAM: prefer the max reported by Proxmox, else the declared size.
-		maxMB := declaredMemMB(vm)
+		// Live RAM. The balloon figure Proxmox reports (g.MemUsedMB) counts the
+		// guest's reclaimable page cache as "used", so it reads near-full on a healthy
+		// Linux guest. Prefer the guest's own accounting from the QEMU agent
+		// (m.realMem: MemTotal-MemAvailable), which matches `free`/btop; fall back to
+		// the balloon figure when no agent reading is available (LXC, or agent down).
+		usedMB, maxMB := g.MemUsedMB, declaredMemMB(vm)
 		if hasLive && g.MemMB > 0 {
 			maxMB = g.MemMB
+		}
+		if rm, ok := m.realMem[vm.Name]; ok && rm.TotalMB > 0 {
+			usedMB, maxMB = rm.UsedMB, rm.TotalMB
 		}
 		lines := []string{
 			faintStyle.Render("name  ") + headingStyle.Render(vm.Name),
 			faintStyle.Render("state ") + statusDot(running) + " " + status,
 			faintStyle.Render("cpu   ") + cpuGauge(g.CPUFrac, running),
-			faintStyle.Render("ram   ") + ramGauge(g.MemUsedMB, maxMB, running),
+			faintStyle.Render("ram   ") + ramGauge(usedMB, maxMB, running),
 			faintStyle.Render("spec  ") + spec,
 			faintStyle.Render("net   ") + net,
 			faintStyle.Render("user  ") + vm.Username,

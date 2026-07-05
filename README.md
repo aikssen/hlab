@@ -182,10 +182,13 @@ default**, see the [full command reference](docs/commands.md).
 
 ## Status
 
-hlab is at **v0.9.0** and in active use. Highlights so far: setup + Proxmox
+hlab is stable and in active use. Highlights so far: setup + Proxmox
 discovery, the create wizard, Terraform create/destroy, Ansible provisioning (a
 software catalog + dotfiles), a full-screen dashboard TUI, day-2 operations
 (migrate / snapshots / resize), full LXC support, adopting existing guests, drift
 detection, idempotent re-provisioning, and a cluster metrics panel.
+
+For the current version see the [latest release](https://github.com/aikssen/hlab/releases/latest)
+(or run `hlab version`); [CHANGELOG.md](CHANGELOG.md) tracks what changed.
 
 Next up: provisioning profiles, state resilience, and backups (needs a NAS/PBS target).
