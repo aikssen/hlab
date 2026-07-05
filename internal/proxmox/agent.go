@@ -34,6 +34,7 @@ import (
 	"io"
 	"net/http"
 	"net/url"
+	"strconv"
 	"strings"
 	"time"
 )
@@ -139,6 +140,78 @@ func (c *Client) pollAgentExecStatus(node string, vmid, pid int) (AgentExecResul
 		}
 		time.Sleep(agentPollInterval)
 	}
+}
+
+// GuestMem is a VM's memory usage read from INSIDE the guest via the QEMU guest
+// agent (/proc/meminfo), so it reflects what the guest itself accounts as used
+// rather than the hypervisor's balloon figure. The balloon figure Proxmox reports
+// (and the dashboard mirrors) is MemTotal-MemFree, which counts reclaimable page
+// cache as "used" and so runs to near-full on any healthy Linux guest; UsedMB here
+// is MemTotal-MemAvailable, matching `free`/btop's "used". All fields in MB.
+type GuestMem struct {
+	TotalMB int // MemTotal
+	UsedMB  int // MemTotal - MemAvailable (excludes reclaimable cache)
+	AvailMB int // MemAvailable
+	CacheMB int // Buffers + Cached + SReclaimable (the reclaimable slack)
+}
+
+// GuestMemory reads /proc/meminfo inside a running VM through the guest agent and
+// returns the guest's own memory accounting. Needs qemu-guest-agent running and the
+// VM.GuestAgent.Unrestricted privilege (same as AgentExec); any error means "no
+// reading" and callers fall back to the balloon figure. VM-only — the agent path is
+// /qemu/…; LXC has no QEMU agent.
+func (c *Client) GuestMemory(node string, vmid int) (GuestMem, error) {
+	res, err := c.AgentExec(node, vmid, []string{"cat", "/proc/meminfo"}, nil)
+	if err != nil {
+		return GuestMem{}, err
+	}
+	if res.ExitCode != 0 {
+		return GuestMem{}, fmt.Errorf("reading /proc/meminfo via guest agent: exit %d: %s", res.ExitCode, strings.TrimSpace(res.ErrData))
+	}
+	return parseMeminfo(res.OutData)
+}
+
+// parseMeminfo turns the contents of /proc/meminfo into a GuestMem. It reads the kB
+// values it needs and derives used as MemTotal-MemAvailable, so reclaimable page
+// cache is NOT counted as used (matching `free`'s "available" column and btop).
+// Kernels without MemAvailable (pre-3.14) fall back to MemFree+Buffers+Cached. Pure,
+// so it is unit-tested directly.
+func parseMeminfo(s string) (GuestMem, error) {
+	kb := map[string]int{}
+	for _, line := range strings.Split(s, "\n") {
+		colon := strings.IndexByte(line, ':')
+		if colon < 0 {
+			continue
+		}
+		fields := strings.Fields(line[colon+1:]) // "  6062116 kB" → ["6062116","kB"]
+		if len(fields) == 0 {
+			continue
+		}
+		n, err := strconv.Atoi(fields[0])
+		if err != nil {
+			continue
+		}
+		kb[strings.TrimSpace(line[:colon])] = n
+	}
+	total := kb["MemTotal"]
+	if total <= 0 {
+		return GuestMem{}, fmt.Errorf("meminfo: no MemTotal")
+	}
+	avail, ok := kb["MemAvailable"]
+	if !ok {
+		avail = kb["MemFree"] + kb["Buffers"] + kb["Cached"]
+	}
+	used := total - avail
+	if used < 0 {
+		used = 0
+	}
+	toMB := func(v int) int { return v / 1024 }
+	return GuestMem{
+		TotalMB: toMB(total),
+		UsedMB:  toMB(used),
+		AvailMB: toMB(avail),
+		CacheMB: toMB(kb["Buffers"] + kb["Cached"] + kb["SReclaimable"]),
+	}, nil
 }
 
 // requestForm performs a form-encoded request and returns the status code and raw
