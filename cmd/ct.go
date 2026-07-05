@@ -40,6 +40,7 @@ var (
 	ctrCores  int
 	ctrMem    string
 	ctrDiskGB int
+	ctrSwap   int
 	ctrPlan   string
 )
 
@@ -107,6 +108,7 @@ func init() {
 	crf.IntVar(&ctrCores, "cores", 0, "new CPU core count")
 	crf.StringVar(&ctrMem, "memory", "", "new memory in GB (e.g. 2), or MB with a suffix (e.g. 512M)")
 	crf.IntVar(&ctrDiskGB, "disk", 0, "new rootfs size in GB (can only grow)")
+	crf.IntVar(&ctrSwap, "swap", 0, "new swap in MB (0 = none; independent of the plan)")
 	crf.StringVar(&ctrPlan, "plan", "", "apply an LXC plan's cores/memory/disk (micro|small|medium|large)")
 
 	ctMigrateCmd.Flags().StringVar(&migrateToNode, "to", "", "target node to migrate the container to (required)")
@@ -215,8 +217,13 @@ func runCTResize(cmd *cobra.Command, args []string) error {
 	if cmd.Flags().Changed("disk") {
 		vm.DiskGB, vm.Plan, changed = ctrDiskGB, "", true
 	}
+	// Swap isn't set by any plan, so changing it neither requires nor invalidates a
+	// named plan (vm.Plan is left untouched).
+	if cmd.Flags().Changed("swap") {
+		vm.SwapMB, changed = ctrSwap, true
+	}
 	if !changed {
-		return fmt.Errorf("nothing to change — pass --cores, --memory, --disk or --plan")
+		return fmt.Errorf("nothing to change — pass --cores, --memory, --disk, --swap or --plan")
 	}
 
 	eng := newEngine(cfg, store, runner)
@@ -226,7 +233,7 @@ func runCTResize(cmd *cobra.Command, args []string) error {
 	); err != nil {
 		return err
 	}
-	fmt.Printf("✓ Reconfigured %q: %d cores / %d MB RAM / %d GB disk.\n", name, vm.Cores, vm.MemoryMB, vm.DiskGB)
+	fmt.Printf("✓ Reconfigured %q: %d cores / %d MB RAM / %d MB swap / %d GB disk.\n", name, vm.Cores, vm.MemoryMB, vm.SwapMB, vm.DiskGB)
 	return nil
 }
 
