@@ -7,6 +7,20 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 
 ## [Unreleased]
 
+### Added
+- **Configurable VM CPU model** — `cpu_type` in `~/.hlab/config.yaml` (and per-VM in
+  a declaration) sets the QEMU CPU model for new VMs; it was hardcoded to
+  `x86-64-v2-AES` with no way to override. That default is a *portable* baseline so
+  a VM can live-migrate between nodes with different host CPUs — but it exposes AES
+  and **not PCLMULQDQ**, and a binary compiled to require that instruction dies at
+  startup with SIGILL (found the hard way: Google's Antigravity CLI). Proxmox won't
+  let a lone flag be added on top of a model (its `flags` field only takes a
+  security/virt subset) and the psABI levels don't help — `x86-64-v3` has AVX2 but
+  still no PCLMULQDQ — so the model itself has to change. Pick the oldest one every
+  node can present: `EPYC` on an all-AMD cluster, `host` only if you never migrate
+  between unlike CPUs. Existing declarations are unaffected: an unset `cpu_type`
+  renders no key at all, so Terraform's default applies and nothing drifts.
+
 ### Fixed
 - **A failed provision no longer makes the declaration lie** — the software
   selection was saved *before* Ansible ran, so the declaration recorded what was
@@ -32,6 +46,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   reduced everything to `error: exit status 2` in the status line. It now stays open
   on failure with the output shown, the progress bar stopped, and `esc` closing it
   instead of cancelling.
+- **`provision` waits for SSH instead of racing it** — `create` returns as soon as
+  the guest agent reports an address, which happens early in boot (and
+  `EnsureStaticApplied` may have just rebooted the guest), so `create` followed
+  immediately by `provision` — a script, or the dashboard's create→provision chain —
+  could die on Ansible's `UNREACHABLE`. Provision now waits for port 22 to accept
+  connections first, costing nothing when the guest is already up.
 - **`hlab setup --dotfiles-repo <url>` works on its own** — it was only honoured
   inside the `--url` non-interactive path, so on its own it fell through to the
   interactive wizard and, without a TTY, just failed. It is now an incremental flag

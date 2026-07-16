@@ -43,6 +43,19 @@ type Config struct {
 	DefaultTemplate string   `yaml:"default_template,omitempty"` // template name preselected in the wizard
 	Nodes           []string `yaml:"nodes,omitempty"`
 
+	// CPUType is the QEMU CPU model given to new VMs (containers share the host
+	// kernel and have none). Empty keeps Terraform's portable default, chosen so a
+	// VM can live-migrate between nodes with different host CPUs.
+	//
+	// Worth setting per cluster: that default exposes AES but NOT PCLMULQDQ, and a
+	// binary compiled to require it (Google's Antigravity CLI, for one) dies at
+	// startup with SIGILL. Proxmox refuses to add a lone flag on top of a model —
+	// its `flags` field only takes a security/virt subset — so the model itself has
+	// to change, and the psABI levels don't help (`x86-64-v3` has AVX2 but still no
+	// PCLMULQDQ). Pick the oldest model every node can present: `EPYC` on an
+	// all-AMD cluster, `host` only if you never migrate between unlike CPUs.
+	CPUType string `yaml:"cpu_type,omitempty"`
+
 	// Network defaults used to pre-fill static addressing during `vm create`.
 	DefaultGateway string `yaml:"default_gateway,omitempty"` // e.g. 192.168.1.1
 	DefaultCIDR    int    `yaml:"default_cidr,omitempty"`    // subnet prefix, e.g. 24

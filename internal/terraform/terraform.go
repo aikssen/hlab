@@ -75,6 +75,11 @@ type tfVM struct {
 	DNSServers []string `json:"dns_servers"`
 	Username   string   `json:"username"`
 	SSHKeys    []string `json:"ssh_keys"`
+	// CPUType renders only when set (omitempty): unset → key absent → the
+	// optional() default in variables.tf applies. That keeps an existing
+	// declaration, written before cpu_type existed, rendering exactly as before
+	// instead of planning a change.
+	CPUType string `json:"cpu_type,omitempty"`
 }
 
 // tfCT mirrors the object type expected by var.cts in variables.tf.
@@ -212,6 +217,7 @@ func (r *Runner) writeTfvars(specs []*state.VMSpec) error {
 			Cores:      s.Cores,
 			MemoryMB:   mem,
 			DiskGB:     s.DiskGB,
+			CPUType:    s.CPUType,
 			DHCP:       s.DHCP,
 			IPCIDR:     s.IPCIDR,
 			Gateway:    s.Gateway,

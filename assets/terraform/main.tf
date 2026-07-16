@@ -43,7 +43,7 @@ resource "proxmox_virtual_environment_vm" "vm" {
 
   cpu {
     cores = each.value.cores
-    type  = "x86-64-v2-AES"
+    type  = each.value.cpu_type
   }
 
   memory {

@@ -14,6 +14,7 @@ import (
 	"context"
 	"fmt"
 	"io"
+	"net"
 	"os"
 	"path/filepath"
 	"slices"
@@ -84,6 +85,14 @@ func (e *Engine) Create(res *wizard.Result) (string, error) {
 		if v, verr := e.PM.Version(); verr == nil && pveVersionAtLeast(v, 9, 1) {
 			res.VM.HostManagedNet = true
 		}
+	}
+
+	// Stamp the configured CPU model onto a new VM here rather than in each of the
+	// three create paths (flags, wizard, TUI form). Containers share the host
+	// kernel and have no CPU model. An empty cpu_type leaves the field unset, so
+	// Terraform's own default applies.
+	if !res.VM.IsLXC() && res.VM.CPUType == "" {
+		res.VM.CPUType = e.Cfg.CPUType
 	}
 
 	if err := e.prepareWorkspace(res); err != nil {
@@ -314,6 +323,16 @@ func (e *Engine) provision(vm *state.VMSpec, upgrade bool, verbWord string) erro
 		return fmt.Errorf("dotfiles selected but your SSH agent has no keys — %s is an SSH URL, cloned over the forwarded agent, so load the key that host authorizes:\n    ssh-add ~/.ssh/id_ed25519\nIf the repo is public, pointing dotfiles_repo at its https:// URL needs no agent at all", e.Cfg.DotfilesRepo)
 	}
 	ip := e.ResolveIP(vm)
+	if ip == "" {
+		return fmt.Errorf("no IP address known for %q yet — is it running?", vm.Name)
+	}
+	// Ansible's first act is to connect, so a guest that is up but not yet
+	// listening on 22 fails the whole play as UNREACHABLE. Wait for sshd instead of
+	// making the caller retry: create returns as soon as the guest agent reports
+	// the address, which is well before that.
+	if !waitForSSH(ip, 3*time.Minute) {
+		return fmt.Errorf("%s (%s) is not accepting SSH after 3m — is it booted and reachable?", vm.Name, ip)
+	}
 
 	ar := ansible.New(filepath.Join(e.Cfg.StateDirExpanded(), "ansible"))
 	ar.Verbose = e.AnsibleVerbose
@@ -1039,6 +1058,26 @@ func (e *Engine) EnsureStaticApplied(vm *state.VMSpec) {
 	}
 	_ = e.PM.RebootVM(vm.Node, vm.VMID)
 	waitUntil(hasStatic, 150*time.Second, 5*time.Second)
+}
+
+// waitForSSH blocks until the guest at ip accepts TCP connections on port 22, or
+// the timeout expires.
+//
+// Create returns as soon as the guest agent reports the address — which happens
+// early in boot, well before sshd is listening, and EnsureStaticApplied may even
+// have just rebooted the guest. So `create` immediately followed by `provision`
+// (a script, or the dashboard's create→provision chain) raced sshd and died on
+// Ansible's UNREACHABLE. waitUntil probes before it sleeps, so an already-booted
+// guest costs one connect and no delay.
+func waitForSSH(ip string, timeout time.Duration) bool {
+	return waitUntil(func() bool {
+		c, err := net.DialTimeout("tcp", net.JoinHostPort(ip, "22"), 3*time.Second)
+		if err != nil {
+			return false
+		}
+		_ = c.Close()
+		return true
+	}, timeout, 3*time.Second)
 }
 
 func waitUntil(cond func() bool, timeout, interval time.Duration) bool {

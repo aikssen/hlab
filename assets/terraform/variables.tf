@@ -19,6 +19,11 @@ variable "vms" {
     dns_servers = optional(list(string), [])
     username    = string
     ssh_keys    = optional(list(string), [])
+    # QEMU CPU model. The default is a portable baseline so a VM can live-migrate
+    # between nodes with different host CPUs. Note it exposes AES but NOT
+    # PCLMULQDQ, which some modern binaries require — override per cluster (see
+    # cpu_type in hlab's config).
+    cpu_type = optional(string, "x86-64-v2-AES")
   }))
   default = {}
 }
