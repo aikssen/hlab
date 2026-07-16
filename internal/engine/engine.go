@@ -123,7 +123,30 @@ func (e *Engine) Create(res *wizard.Result) (string, error) {
 		_ = e.Cfg.Save()
 	}
 
-	return e.ResolveIP(res.VM), nil
+	ip := e.ResolveIP(res.VM)
+	// A brand-new guest means a brand-new sshd host key, so anything known_hosts
+	// still records for this address belongs to a guest that no longer exists.
+	// Dropping it here (rather than on the next ssh) is what keeps the cleanup
+	// honest: create is a mutation hlab just performed, so the entry is provably
+	// stale — no judgement call about trust is involved. It also self-heals
+	// addresses whose previous occupant was destroyed outside hlab, or before this
+	// existed. Best-effort: known_hosts is a local convenience and must never fail
+	// an (already-succeeded) create.
+	e.forgetHostKey(ip)
+
+	return ip, nil
+}
+
+// forgetHostKey drops any known_hosts entry for ip. Shared by create and destroy;
+// both call it about an address whose occupant hlab itself just replaced or
+// removed. Errors are swallowed on purpose: known_hosts is a local convenience,
+// and the engine never prints (callers own the UI), so there is nowhere to report
+// a failure that must not change the outcome of the operation anyway.
+func (e *Engine) forgetHostKey(ip string) {
+	if ip == "" {
+		return
+	}
+	_ = sshutil.Forget(ip)
 }
 
 // vmidConflict returns a descriptive error if vmid is already used by any guest
@@ -306,6 +329,13 @@ func (e *Engine) Destroy(name string) error {
 	if err != nil {
 		return err
 	}
+	// Resolve the address now: once the guest is gone there is nothing left to ask
+	// (a DHCP guest's lease is only discoverable while it lives) and the
+	// declaration itself is deleted below, so this is the last moment hlab knows
+	// which known_hosts entry is about to become stale. A guest that is already
+	// off and has no declared IP simply yields "" and is skipped.
+	ip := e.ResolveIP(target)
+
 	// Ensure the workspace includes the target before destroying it.
 	vms, err := e.Store.List()
 	if err != nil {
@@ -324,6 +354,10 @@ func (e *Engine) Destroy(name string) error {
 	if err := e.Runner.Destroy(target); err != nil {
 		return err
 	}
+	// The guest is gone, so its recorded host key now refers to nothing. Drop it
+	// so a future guest at this address (or an unrelated host that inherits the
+	// lease) isn't met with a host-key mismatch.
+	e.forgetHostKey(ip)
 
 	if err := e.Store.Delete(name); err != nil {
 		return err

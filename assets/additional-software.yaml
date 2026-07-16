@@ -14,6 +14,9 @@ software:
   - key: k3s
     label: K3s (lightweight Kubernetes)
     mise: false
+  - key: coolify
+    label: Coolify (self-hosted PaaS)
+    mise: false
   - key: node
     label: Node.js (mise)
     mise: true

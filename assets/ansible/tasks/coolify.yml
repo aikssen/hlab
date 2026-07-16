@@ -1,0 +1,17 @@
+---
+# Coolify pulls in and configures its own Docker engine, so it does not depend on
+# the docker catalog entry (selecting both is harmless, just redundant). The
+# installer refuses to run as a non-root user, so this keeps the play's
+# become: true instead of dropping to target_user like the CLI installers do.
+- name: Check whether Coolify is installed
+  ansible.builtin.stat:
+    path: /data/coolify/source/.env
+  register: coolify_check
+
+- name: Install Coolify (official installer)
+  # Re-running the installer is Coolify's documented upgrade path, so the same
+  # command covers both cases. It is non-interactive and takes several minutes.
+  ansible.builtin.shell: curl -fsSL https://cdn.coollabs.io/coolify/install.sh | bash
+  args:
+    executable: /bin/bash
+  when: not coolify_check.stat.exists or (upgrade | bool)

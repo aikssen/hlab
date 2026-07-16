@@ -58,6 +58,45 @@ and the **`VM.GuestAgent.Unrestricted`** privilege on the API token (see
 [proxmox-token.md](proxmox-token.md)); a missing privilege surfaces `403 …
 VM.GuestAgent.Unrestricted` with the fix.
 
+## Host keys & recycled addresses
+
+The keys above are what hlab installs *on* a guest. The guest also presents its own
+**host key**, which your ssh client records in `~/.ssh/known_hosts` the first time it
+connects. Destroy a guest and create another at the same address — the normal homelab
+pattern, with recycled test IDs and a small static-IP pool — and the recorded key now
+belongs to a machine that no longer exists. The next `ssh` refuses to connect:
+
+```
+@    WARNING: REMOTE HOST IDENTIFICATION HAS CHANGED!     @
+```
+
+**hlab cleans up after itself.** `create` and `destroy` drop the known_hosts entry for
+the address they touch — create because a new guest means a new host key (so anything
+recorded is stale by construction), destroy because the machine is gone. Both are
+best-effort and never fail the operation. Removal goes through `ssh-keygen -R`, which
+handles hashed `known_hosts` files and retains the previous contents as
+`known_hosts.old`; the file ssh actually consults is resolved with `ssh -G`, so a
+`UserKnownHostsFile` override in your `ssh_config` is honoured.
+
+Note this is hooked to **mutations, never to connections**. hlab drops an entry only
+when it just created or destroyed the guest at that address, so no judgement about
+trust is involved. Removing entries at connect time would silently turn every genuine
+man-in-the-middle warning into an accept.
+
+For everything else — an address whose guest was destroyed from another machine,
+outside hlab, or before hlab cleaned up after itself:
+
+```bash
+hlab known-hosts clean 6100                 # by name or id
+hlab known-hosts clean 192.168.1.50         # by address (works with no declaration)
+hlab known-hosts clean --all                # whole fleet, stale entries only
+```
+
+`--all` never guesses: it compares each recorded key against the key the guest
+currently presents (`ssh-keyscan`) and removes only the ones that contradict it.
+Entries that match are kept, and a guest that can't be reached is skipped — unreachable
+is not evidence of staleness.
+
 ## Baked-in template keys
 
 A VM cloned from a golden image that has a key **baked into its `authorized_keys`**
