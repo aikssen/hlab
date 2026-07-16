@@ -1032,7 +1032,17 @@ func newSetupBinding(cfg *config.Config, pm *proxmox.Client) (*setupBinding, err
 		fields = append(fields, huh.NewSelect[string]().Title("Default template").
 			Options(stringOpts(templateNames(templates))...).Value(&cfg.DefaultTemplate))
 	}
+	// Which models are offered depends on the host's vendor — an Intel model can't
+	// start on an AMD host. Best-effort: an unreadable vendor just leaves the
+	// vendor-neutral choices.
+	if cfg.CPUType == "" {
+		cfg.CPUType = config.DefaultCPUType
+	}
 	fields = append(fields,
+		huh.NewSelect[string]().Title("VM CPU model").
+			Description("Portable models migrate anywhere but lack PCLMULQDQ, which some binaries need.").
+			Options(cpuChoiceOpts(config.CPUTypeChoices(pm.NodeCPUVendor(cfg.DefaultNode)))...).
+			Value(&cfg.CPUType),
 		huh.NewInput().Title("Default gateway (optional)").Placeholder("192.168.1.1").Value(&cfg.DefaultGateway),
 		huh.NewInput().Title("Subnet prefix / CIDR").Placeholder("24").Value(&b.cidrStr).Validate(validateOptionalCIDR),
 		huh.NewInput().Title("Dotfiles repo (optional, SSH URL)").
@@ -1151,6 +1161,17 @@ func stringOpts(values []string) []huh.Option[string] {
 	opts := make([]huh.Option[string], 0, len(values))
 	for _, v := range values {
 		opts = append(opts, huh.NewOption(v, v))
+	}
+	return opts
+}
+
+// cpuChoiceOpts renders the curated CPU models as select options. The trade-off
+// rides in the label because huh shows one Description for the whole select, not
+// per option — and the trade-off is the entire point of choosing.
+func cpuChoiceOpts(choices []config.CPUChoice) []huh.Option[string] {
+	opts := make([]huh.Option[string], 0, len(choices))
+	for _, c := range choices {
+		opts = append(opts, huh.NewOption(c.Label+" — "+c.Desc, c.Value))
 	}
 	return opts
 }

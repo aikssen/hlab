@@ -30,6 +30,7 @@ var (
 	setupCIDR         int
 	setupTemplate     string
 	setupDotfilesRepo string
+	setupCPUType      string
 )
 
 var setupCmd = &cobra.Command{
@@ -57,6 +58,7 @@ func init() {
 	setupCmd.Flags().StringVar(&setupGateway, "gateway", "", "default gateway for static IPs, e.g. 192.168.1.1")
 	setupCmd.Flags().IntVar(&setupCIDR, "cidr", 0, "default subnet prefix, e.g. 24")
 	setupCmd.Flags().StringVar(&setupTemplate, "template", "", "default template name to preselect in the wizard")
+	setupCmd.Flags().StringVar(&setupCPUType, "cpu-type", "", "QEMU CPU model for new VMs (e.g. EPYC, host); empty keeps the portable default")
 	setupCmd.Flags().StringVar(&setupDotfilesRepo, "dotfiles-repo", "", "dotfiles repo URL — ssh (git@host:path) or https for a public repo (enables the dotfiles software option)")
 	rootCmd.AddCommand(setupCmd)
 }
@@ -67,7 +69,7 @@ func runSetup(_ *cobra.Command, _ []string) error {
 	// reachable only via --url, so `hlab setup --dotfiles-repo <url>` silently fell
 	// through to the interactive wizard — and just failed outright without a TTY.
 	// Changing one field shouldn't mean re-supplying the whole connection.
-	if setupAddNode != "" || setupAddSSHKey || (setupDotfilesRepo != "" && setupURL == "") {
+	if setupAddNode != "" || setupAddSSHKey || ((setupDotfilesRepo != "" || setupCPUType != "") && setupURL == "") {
 		return runSetupAdd()
 	}
 	// Non-interactive mode when --url is provided.
@@ -157,7 +159,17 @@ func runSetup(_ *cobra.Command, _ []string) error {
 		fields = append(fields, huh.NewSelect[string]().
 			Title("Default template").Options(tmplOpts...).Value(&cfg.DefaultTemplate))
 	}
+	// The offered models depend on the host's vendor — an Intel model can't start
+	// on an AMD host. Best-effort: an unreadable vendor just means the choices are
+	// the vendor-neutral ones.
+	cpuOpts := optsFromCPUChoices(config.CPUTypeChoices(pm.NodeCPUVendor(cfg.DefaultNode)))
+	if cfg.CPUType == "" {
+		cfg.CPUType = config.DefaultCPUType
+	}
 	fields = append(fields,
+		huh.NewSelect[string]().Title("VM CPU model").
+			Description("Portable models can live-migrate anywhere but lack PCLMULQDQ, which some binaries require.").
+			Options(cpuOpts...).Value(&cfg.CPUType),
 		huh.NewInput().Title("Default gateway (optional)").
 			Description("Used to pre-fill a static IP when creating a VM.").
 			Placeholder("192.168.1.1").Value(&cfg.DefaultGateway),
@@ -217,6 +229,9 @@ func runSetupNonInteractive() error {
 	}
 	if setupTemplate != "" {
 		cfg.DefaultTemplate = setupTemplate
+	}
+	if setupCPUType != "" {
+		cfg.CPUType = setupCPUType
 	}
 	if setupDotfilesRepo != "" {
 		cfg.DotfilesRepo = setupDotfilesRepo
@@ -282,6 +297,10 @@ func runSetupAdd() error {
 		cfg.DotfilesRepo = setupDotfilesRepo
 		fmt.Printf("✓ Set dotfiles repo to %s\n", setupDotfilesRepo)
 	}
+	if setupCPUType != "" {
+		cfg.CPUType = setupCPUType
+		fmt.Printf("✓ Set VM CPU model to %s\n", setupCPUType)
+	}
 	return cfg.Save()
 }
 
@@ -340,6 +359,17 @@ func optsFromStorages(ss []proxmox.Storage, current *string, fallback string) []
 	}
 	if *current == "" || !found {
 		*current = opts[0].Value
+	}
+	return opts
+}
+
+// optsFromCPUChoices renders the curated CPU models as select options. The
+// trade-off rides in the label, since huh shows a Description once for the whole
+// select, not per option — and the trade-off is the entire point of the choice.
+func optsFromCPUChoices(choices []config.CPUChoice) []huh.Option[string] {
+	opts := make([]huh.Option[string], 0, len(choices))
+	for _, c := range choices {
+		opts = append(opts, huh.NewOption(c.Label+" — "+c.Desc, c.Value))
 	}
 	return opts
 }

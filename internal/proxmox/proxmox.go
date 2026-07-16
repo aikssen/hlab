@@ -627,6 +627,28 @@ func (c *Client) Version() (string, error) {
 	return r.Data.Version, nil
 }
 
+// NodeCPUVendor returns a node's host CPU vendor as Proxmox reports it —
+// "AuthenticAMD", "GenuineIntel", or "" if it can't be read.
+//
+// It selects which CPU models a VM on that node could actually be given: a model
+// is a promise about the instruction set the host will present, so an Intel model
+// cannot start on an AMD host. Best-effort by design — the caller only uses it to
+// narrow a list of choices, and an empty vendor just means offering the
+// vendor-neutral ones.
+func (c *Client) NodeCPUVendor(node string) string {
+	var r struct {
+		Data struct {
+			CPUInfo struct {
+				Vendor string `json:"vendor"`
+			} `json:"cpuinfo"`
+		} `json:"data"`
+	}
+	if err := c.get("/nodes/"+node+"/status", &r); err != nil {
+		return ""
+	}
+	return r.Data.CPUInfo.Vendor
+}
+
 // Node is a cluster node.
 type Node struct {
 	Name   string `json:"node"`
