@@ -162,10 +162,8 @@ func runSetup(_ *cobra.Command, _ []string) error {
 	// The offered models depend on the host's vendor — an Intel model can't start
 	// on an AMD host. Best-effort: an unreadable vendor just means the choices are
 	// the vendor-neutral ones.
-	cpuOpts := optsFromCPUChoices(config.CPUTypeChoices(pm.NodeCPUVendor(cfg.DefaultNode)))
-	if cfg.CPUType == "" {
-		cfg.CPUType = config.DefaultCPUType
-	}
+	cpuOpts := optsFromStrings(config.CPUTypeChoices(pm.NodeCPUVendor(cfg.DefaultNode)),
+		&cfg.CPUType, config.DefaultCPUType)
 	fields = append(fields,
 		huh.NewSelect[string]().Title("VM CPU model").
 			Description("Portable models can live-migrate anywhere but lack PCLMULQDQ, which some binaries require.").
@@ -359,17 +357,6 @@ func optsFromStorages(ss []proxmox.Storage, current *string, fallback string) []
 	}
 	if *current == "" || !found {
 		*current = opts[0].Value
-	}
-	return opts
-}
-
-// optsFromCPUChoices renders the curated CPU models as select options. The
-// trade-off rides in the label, since huh shows a Description once for the whole
-// select, not per option — and the trade-off is the entire point of the choice.
-func optsFromCPUChoices(choices []config.CPUChoice) []huh.Option[string] {
-	opts := make([]huh.Option[string], 0, len(choices))
-	for _, c := range choices {
-		opts = append(opts, huh.NewOption(c.Label+" — "+c.Desc, c.Value))
 	}
 	return opts
 }
