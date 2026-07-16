@@ -8,8 +8,13 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
-- **Configurable VM CPU model** — `cpu_type` in `~/.hlab/config.yaml` (and per-VM in
-  a declaration) sets the QEMU CPU model for new VMs; it was hardcoded to
+- **Configurable VM CPU model** — pick it in `hlab setup` and the dashboard's setup
+  form (`S`), with `hlab setup --cpu-type <model>` for scripting; `hlab vm show` and
+  the dashboard's detail panel now show a VM's model. The offered list is a curated
+  shortlist along the one axis that matters — portability vs instruction set — and
+  is filtered by the host's vendor, since an Intel model can't start on an AMD host.
+  It is stored as `cpu_type` in `~/.hlab/config.yaml`, and can be overridden per-VM
+  in a declaration. It was hardcoded to
   `x86-64-v2-AES` with no way to override. That default is a *portable* baseline so
   a VM can live-migrate between nodes with different host CPUs — but it exposes AES
   and **not PCLMULQDQ**, and a binary compiled to require that instruction dies at

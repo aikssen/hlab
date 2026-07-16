@@ -32,16 +32,18 @@ func testMetricsModel(t *testing.T) Model {
 
 // TestMetricsPanelSize locks in the width/height the layout math depends on: the
 // metrics panel must be exactly 40 wide (so detail 48 + gap 1 + metrics 40 == the
-// 89-col table width) and 11 tall (9 content + border) to align with the detail
-// panel under JoinHorizontal.
+// 89-col table width) and 12 tall (10 content + border) to align with the detail
+// panel under JoinHorizontal. The height tracks the tallest detail panel — a
+// managed VM, which gained a "model" row for its CPU model — and both panels must
+// move together or their bottom borders stop lining up.
 func TestMetricsPanelSize(t *testing.T) {
 	m := testMetricsModel(t)
 	v := m.metricsView()
 	if w := lipgloss.Width(v); w != 40 {
 		t.Errorf("metrics panel width = %d, want 40", w)
 	}
-	if h := lipgloss.Height(v); h != 11 {
-		t.Errorf("metrics panel height = %d, want 11", h)
+	if h := lipgloss.Height(v); h != 12 {
+		t.Errorf("metrics panel height = %d, want 12", h)
 	}
 }
 
@@ -100,8 +102,8 @@ func TestMetricsPanelLoadingState(t *testing.T) {
 	if !strings.Contains(v, "loading") {
 		t.Errorf("empty metrics should render a loading hint, got %q", v)
 	}
-	if w, h := lipgloss.Width(v), lipgloss.Height(v); w != 40 || h != 11 {
-		t.Errorf("loading panel size = %dx%d, want 40x11", w, h)
+	if w, h := lipgloss.Width(v), lipgloss.Height(v); w != 40 || h != 12 {
+		t.Errorf("loading panel size = %dx%d, want 40x12", w, h)
 	}
 }
 

@@ -1652,6 +1652,7 @@ func (m Model) detailView() string {
 			faintStyle.Render("cpu   ") + cpuGauge(g.CPUFrac, running),
 			faintStyle.Render("ram   ") + ramGauge(usedMB, maxMB, running),
 			faintStyle.Render("spec  ") + spec,
+			faintStyle.Render("model ") + cpuModelCell(vm),
 			faintStyle.Render("net   ") + net,
 			faintStyle.Render("user  ") + vm.Username,
 			faintStyle.Render("prov  ") + provisioned(vm),
@@ -2397,10 +2398,13 @@ func initStyles(p theme.Palette) {
 	dimStyle = lipgloss.NewStyle().Foreground(p.Dim)
 	okStyle = lipgloss.NewStyle().Foreground(p.Good)
 	errStyle = lipgloss.NewStyle().Foreground(p.Bad)
+	// Height is fixed and shared: the two panels are joined side by side, so they
+	// must agree or their bottom borders don't line up. It fits the tallest panel
+	// (a managed VM: name/state/cpu/ram/spec/model/net/user/prov/drift).
 	panelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(p.LineSoft).Padding(0, 1).Width(46).Height(9)
+		BorderForeground(p.LineSoft).Padding(0, 1).Width(46).Height(10)
 	metricsPanelStyle = lipgloss.NewStyle().Border(lipgloss.RoundedBorder()).
-		BorderForeground(p.LineSoft).Padding(0, 1).Width(metricsInnerW).Height(9)
+		BorderForeground(p.LineSoft).Padding(0, 1).Width(metricsInnerW).Height(10)
 	sectionTitleStyle = lipgloss.NewStyle().Foreground(p.Accent).Bold(true)
 	tableHeaderStyle = lipgloss.NewStyle().Foreground(p.Faint)
 	tableRuleStyle = lipgloss.NewStyle().Foreground(p.LineSoft)
@@ -2435,3 +2439,12 @@ func initStyles(p theme.Palette) {
 }
 
 func init() { initStyles(active) }
+
+// cpuModelCell renders a guest's QEMU CPU model. Containers share the host kernel
+// and have none, so they get a dash rather than a misleading default.
+func cpuModelCell(vm *state.VMSpec) string {
+	if vm.IsLXC() {
+		return dimStyle.Render("—")
+	}
+	return config.CPUTypeOrDefault(vm.CPUType)
+}

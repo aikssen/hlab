@@ -373,6 +373,12 @@ func renderResult(title string, vm *state.VMSpec, ip string) string {
 	rows = append(rows,
 		[2]string{"CPU / RAM", fmt.Sprintf("%d cores / %s", vm.Cores, ramDisplay(vm))},
 		[2]string{"Disk", fmt.Sprintf("%d GB", vm.DiskGB)},
+	)
+	// Containers share the host kernel and have no CPU model of their own.
+	if !vm.IsLXC() {
+		rows = append(rows, [2]string{"CPU model", config.CPUTypeOrDefault(vm.CPUType)})
+	}
+	rows = append(rows,
 		[2]string{"IP", ipOrDash(ip)},
 		[2]string{"User", vm.Username},
 		[2]string{"Login", loginDesc(vm)},
