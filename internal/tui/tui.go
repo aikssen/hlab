@@ -513,8 +513,10 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 		return m.startRun(msg.title, msg.cmd)
 
 	case tickMsg:
-		if m.mode != modeRun {
-			return m, nil // stop animating when the run ends
+		// Stop animating when the run ends — either because the window closed, or
+		// because it failed and is being held open for the operator to read.
+		if m.mode != modeRun || m.opErr != nil {
+			return m, nil
 		}
 		m.runFrame++
 		return m, tickCmd()
@@ -543,6 +545,12 @@ func (m Model) Update(msg tea.Msg) (tea.Model, tea.Cmd) {
 			m.showLog = !m.showLog
 			return m, nil
 		case "ctrl+c", "esc":
+			// A failed run is already over — there is nothing left to cancel, so esc
+			// dismisses the window the operator was kept in to read the output.
+			if m.opErr != nil {
+				m.mode = modeDash
+				return m, nil
+			}
 			if m.cancel != nil && !m.cancelled {
 				m.cancelled = true
 				m.runTitle = "Cancelling " + strings.TrimSuffix(m.runTitle, "…")
@@ -1077,7 +1085,6 @@ func tickCmd() tea.Cmd {
 // onRunDone returns to the dashboard after a streaming operation, optionally
 // chaining into the provision form (right after a create).
 func (m Model) onRunDone(msg runDoneMsg) (tea.Model, tea.Cmd) {
-	m.mode = modeDash
 	// Detach the shared runner from the finished operation's context.
 	m.eng.Runner.Detach()
 	m.eng.Ctx = nil
@@ -1085,15 +1092,28 @@ func (m Model) onRunDone(msg runDoneMsg) (tea.Model, tea.Cmd) {
 
 	if m.cancelled {
 		m.cancelled = false
+		m.mode = modeDash
 		m.status = "cancelled"
 		return m, m.refresh()
 	}
 	if msg.err != nil {
+		// Stay in modeRun on failure. The log panel holds the tool output saying WHY
+		// it failed; closing the window here threw that away and left only the exit
+		// status — an ansible failure reads as a bare "error: exit status 2", with
+		// the actual cause (a dotfiles clone the forwarded agent couldn't
+		// authenticate, say) discarded along with the panel.
+		//
+		// The run is over, so `opErr != nil` while in modeRun is the "finished,
+		// failed, waiting to be dismissed" state: the progress bar stops animating,
+		// esc closes instead of cancelling, and the output is force-shown.
+		//
 		// Use opErr (not err) so the follow-up refresh doesn't immediately wipe it;
 		// it persists until the next operation or a manual refresh.
 		m.opErr = msg.err
+		m.showLog = true
 		return m, m.refresh()
 	}
+	m.mode = modeDash
 	m.status = msg.status
 	if msg.thenProvision != nil {
 		return m.enterProvisionForm(msg.thenProvision)
@@ -1517,12 +1537,22 @@ func (m Model) formModal() string {
 // animated progress bar, the latest output line, and (toggled with l) a
 // fixed-size output box that does not grow as the process advances.
 func (m Model) runModal() string {
-	const inner = 56 // modal content width
+	const inner = 56         // modal content width
+	failed := m.opErr != nil // the run finished and failed; held open to be read
 	var b strings.Builder
-	b.WriteString(modalTitleStyle.Render(m.runTitle + "…"))
-	b.WriteString("\n\n")
-	b.WriteString(progressBar(inner, m.runFrame))
-	b.WriteString("\n\n")
+	if failed {
+		b.WriteString(modalTitleStyle.Render(strings.TrimSuffix(m.runTitle, "…") + " — failed"))
+		b.WriteString("\n\n")
+		// The exit status alone is useless, so lead with it but keep the output box
+		// below: that is where the real cause is.
+		b.WriteString(mErrStyle.Render(truncate(m.opErr.Error(), inner)))
+		b.WriteString("\n\n")
+	} else {
+		b.WriteString(modalTitleStyle.Render(m.runTitle + "…"))
+		b.WriteString("\n\n")
+		b.WriteString(progressBar(inner, m.runFrame))
+		b.WriteString("\n\n")
+	}
 
 	if m.showLog {
 		hint := "↑/↓ scroll"
@@ -1542,7 +1572,11 @@ func (m Model) runModal() string {
 		b.WriteByte('\n')
 	}
 	b.WriteByte('\n')
-	b.WriteString(mDimStyle.Render("l: " + showHideLabel(m.showLog) + " output · esc: cancel"))
+	action := "esc: cancel"
+	if failed {
+		action = "esc: close" // nothing left to cancel — the run already ended
+	}
+	b.WriteString(mDimStyle.Render("l: " + showHideLabel(m.showLog) + " output · " + action))
 	return modalStyle.Render(b.String())
 }
 
@@ -1982,6 +2016,9 @@ func humanUptime(sec int64) string {
 // keybindings never shift or disappear when a status message appears.
 func (m Model) footerView() string {
 	if m.mode == modeRun {
+		if m.opErr != nil {
+			return dimStyle.Render("  failed — read the output above, esc to close") + "\n"
+		}
 		return dimStyle.Render("  working… please wait") + "\n"
 	}
 	// Context-sensitive: a discovered guest only exposes power actions.
@@ -2341,6 +2378,7 @@ var (
 	modalTitleStyle lipgloss.Style
 	mLabelStyle     lipgloss.Style
 	mDimStyle       lipgloss.Style
+	mErrStyle       lipgloss.Style
 
 	// outputBoxStyle is the embedded "terminal": dark background, light text, a
 	// clearly differentiated box inside the modal.
@@ -2385,6 +2423,9 @@ func initStyles(p theme.Palette) {
 	modalTitleStyle = lipgloss.NewStyle().Foreground(p.Accent).Background(p.ModalBG).Bold(true)
 	mLabelStyle = lipgloss.NewStyle().Foreground(p.Accent).Background(p.ModalBG).Bold(true)
 	mDimStyle = lipgloss.NewStyle().Foreground(p.Dim).Background(p.ModalBG)
+	// Modal-scoped Bad: errStyle has no ModalBG, so it would paint the failure line
+	// on a background island inside the run window.
+	mErrStyle = lipgloss.NewStyle().Foreground(p.Bad).Background(p.ModalBG)
 
 	outputBoxStyle = lipgloss.NewStyle().
 		Background(p.OutBG).
