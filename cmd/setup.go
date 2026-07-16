@@ -57,13 +57,17 @@ func init() {
 	setupCmd.Flags().StringVar(&setupGateway, "gateway", "", "default gateway for static IPs, e.g. 192.168.1.1")
 	setupCmd.Flags().IntVar(&setupCIDR, "cidr", 0, "default subnet prefix, e.g. 24")
 	setupCmd.Flags().StringVar(&setupTemplate, "template", "", "default template name to preselect in the wizard")
-	setupCmd.Flags().StringVar(&setupDotfilesRepo, "dotfiles-repo", "", "dotfiles repo SSH URL (enables the dotfiles software option)")
+	setupCmd.Flags().StringVar(&setupDotfilesRepo, "dotfiles-repo", "", "dotfiles repo URL — ssh (git@host:path) or https for a public repo (enables the dotfiles software option)")
 	rootCmd.AddCommand(setupCmd)
 }
 
 func runSetup(_ *cobra.Command, _ []string) error {
-	// Incremental modes operate on the existing config.
-	if setupAddNode != "" || setupAddSSHKey {
+	// Incremental modes operate on the existing config. --dotfiles-repo belongs
+	// here too: it used to be honoured only inside runSetupNonInteractive, which is
+	// reachable only via --url, so `hlab setup --dotfiles-repo <url>` silently fell
+	// through to the interactive wizard — and just failed outright without a TTY.
+	// Changing one field shouldn't mean re-supplying the whole connection.
+	if setupAddNode != "" || setupAddSSHKey || (setupDotfilesRepo != "" && setupURL == "") {
 		return runSetupAdd()
 	}
 	// Non-interactive mode when --url is provided.
@@ -273,6 +277,10 @@ func runSetupAdd() error {
 		if err := pickSSHKeys(cfg); err != nil {
 			return err
 		}
+	}
+	if setupDotfilesRepo != "" {
+		cfg.DotfilesRepo = setupDotfilesRepo
+		fmt.Printf("✓ Set dotfiles repo to %s\n", setupDotfilesRepo)
 	}
 	return cfg.Save()
 }

@@ -27,6 +27,16 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   and is now a hard error naming `ssh-add`. It applies only to SSH URLs
   (`git@host:path`, `ssh://`): an `https://` repo clones without an agent and is
   never blocked.
+- **The dashboard no longer throws away the reason a run failed** — the progress
+  window closed on failure, discarding the log panel that held the tool output, and
+  reduced everything to `error: exit status 2` in the status line. It now stays open
+  on failure with the output shown, the progress bar stopped, and `esc` closing it
+  instead of cancelling.
+- **`hlab setup --dotfiles-repo <url>` works on its own** — it was only honoured
+  inside the `--url` non-interactive path, so on its own it fell through to the
+  interactive wizard and, without a TTY, just failed. It is now an incremental flag
+  like `--add-node`/`--add-ssh-key`. Its help no longer says "SSH URL": an `https://`
+  URL is valid, and for a public repo it is the better choice.
 
 ## [0.10.3] - 2026-07-16
 
