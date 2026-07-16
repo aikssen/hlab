@@ -5,20 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
-## [Unreleased]
+## [0.10.4] - 2026-07-16
 
 ### Added
-- **Configurable VM CPU model** — pick it in `hlab setup` and the dashboard's setup
-  form (`S`), with `hlab setup --cpu-type <model>` for scripting; `hlab vm show` and
-  the dashboard's detail panel now show a VM's model. The offered list is a curated
-  shortlist — one entry per meaningful point on the portability-vs-instruction-set
-  axis — filtered by the host's vendor, since an Intel model can't start on an AMD
-  host.
-  It is stored as `cpu_type` in `~/.hlab/config.yaml`, and can be overridden per-VM
-  in a declaration. It was hardcoded to
-  `x86-64-v2-AES` with no way to override. That default is a *portable* baseline so
-  a VM can live-migrate between nodes with different host CPUs — but it exposes AES
-  and **not PCLMULQDQ**, and a binary compiled to require that instruction dies at
+- **Configurable VM CPU model** — the QEMU CPU model was hardcoded to
+  `x86-64-v2-AES` with no way to override it. Pick it now in `hlab setup` or the
+  dashboard's setup form (`S`), or pass `hlab setup --cpu-type <model>` for
+  scripting; `hlab vm show` and the dashboard's detail panel show a VM's model. It
+  is stored as `cpu_type` in `~/.hlab/config.yaml` and can be overridden per-VM in a
+  declaration. The offered list is a curated shortlist — one entry per meaningful
+  point on the portability-vs-instruction-set axis — filtered by the host's vendor,
+  since an Intel model can't start on an AMD host.
+
+  Why it matters: that default is a *portable* baseline, chosen so a VM can
+  live-migrate between nodes with different host CPUs — but it exposes AES and
+  **not PCLMULQDQ**, and a binary compiled to require that instruction dies at
   startup with SIGILL (found the hard way: Google's Antigravity CLI). Proxmox won't
   let a lone flag be added on top of a model (its `flags` field only takes a
   security/virt subset) and the psABI levels don't help — `x86-64-v3` has AVX2 but
