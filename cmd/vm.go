@@ -19,7 +19,6 @@ import (
 	"github.com/aikssen/hlab/internal/engine"
 	"github.com/aikssen/hlab/internal/plans"
 	"github.com/aikssen/hlab/internal/proxmox"
-	"github.com/aikssen/hlab/internal/software"
 	"github.com/aikssen/hlab/internal/state"
 	"github.com/aikssen/hlab/internal/terraform"
 	"github.com/aikssen/hlab/internal/theme"
@@ -640,13 +639,6 @@ func runVMProvision(cmd *cobra.Command, args []string) error {
 
 	ip := eng.ResolveIP(vm)
 
-	// Installing dotfiles from a private repo relies on a forwarded SSH agent.
-	if slices.Contains(vm.Software, software.DotfilesKey) && !sshAgentHasKeys() {
-		fmt.Println("! dotfiles is selected but your SSH agent has no keys.")
-		fmt.Println("  If the dotfiles repo is private, load the key GitHub authorizes first, e.g.:")
-		fmt.Println("    ssh-add ~/.ssh/id_ed25519")
-	}
-
 	fmt.Printf("Provisioning %q (%s) with: %s\n", name, ip, strings.Join(vm.Software, ", "))
 	if err := runStep(
 		"Running Ansible… (can take several minutes; -v for details)",
@@ -656,16 +648,6 @@ func runVMProvision(cmd *cobra.Command, args []string) error {
 	}
 	fmt.Printf("\n✓ Provisioned %q.\n", name)
 	return nil
-}
-
-// sshAgentHasKeys reports whether the local SSH agent has at least one identity.
-func sshAgentHasKeys() bool {
-	out, err := exec.Command("ssh-add", "-l").Output()
-	if err != nil {
-		return false
-	}
-	return len(strings.TrimSpace(string(out))) > 0 &&
-		!strings.Contains(string(out), "no identities")
 }
 
 func runVMSSH(_ *cobra.Command, args []string) error {

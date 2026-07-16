@@ -10,6 +10,25 @@ import (
 	"strings"
 )
 
+// AgentHasKeys reports whether the local SSH agent holds at least one identity.
+//
+// It gates the dotfiles catalog entry: the playbook clones dotfiles_repo (an SSH
+// URL) from inside the guest over the operator's forwarded agent, so an agent with
+// no identities cannot clone it. It lives here rather than in cmd because the
+// engine — which both the CLI and the TUI go through — is where that check has to
+// happen for every caller to get it.
+//
+// It fails closed: an ssh-add that won't run at all counts as "no keys", since a
+// forwarded agent hlab cannot even interrogate is not one Ansible can clone with.
+func AgentHasKeys() bool {
+	out, err := exec.Command("ssh-add", "-l").Output()
+	if err != nil {
+		return false
+	}
+	return len(strings.TrimSpace(string(out))) > 0 &&
+		!strings.Contains(string(out), "no identities")
+}
+
 // AppendAuthorizedKey installs a public key into a live guest's
 // ~/.ssh/authorized_keys over SSH, non-interactively (BatchMode) and
 // idempotently: it creates ~/.ssh (700) and authorized_keys (600) if missing and
