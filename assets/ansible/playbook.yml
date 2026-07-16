@@ -90,6 +90,10 @@
       ansible.builtin.include_tasks: tasks/k3s.yml
       when: "'k3s' in software"
 
+    - name: Coolify
+      ansible.builtin.include_tasks: tasks/coolify.yml
+      when: "'coolify' in software"
+
     - name: Claude Code
       ansible.builtin.include_tasks: tasks/claude-code.yml
       when: "'claude-code' in software"

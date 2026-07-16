@@ -5,6 +5,21 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Added
+- **Coolify in the software catalog** — `--software coolify` (or the provisioning
+  checklist) installs [Coolify](https://coolify.io), a self-hosted PaaS, via its
+  official installer. It brings its own Docker engine, so it needs no other catalog
+  entry. The UI is served on port **8000** (plus **6001** for realtime); the first
+  visit redirects to `/register` to create the root user. `hlab {vm,ct} update
+  --upgrade` re-runs the installer, which is Coolify's documented upgrade path.
+  Coolify asks for 2 cores / 2 GB RAM / 30 GB disk, so size the guest at least
+  `KVM2` (VM) or `large` (LXC — `medium`'s 16 GB rootfs is under the 30 GB floor).
+  Note that Coolify registers the host as its own first server: it generates a
+  keypair under `/data/coolify/ssh/keys` and installs the public half into
+  `root`'s `authorized_keys`.
+
 ## [0.10.2] - 2026-07-05
 
 ### Added

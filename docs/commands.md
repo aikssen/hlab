@@ -127,8 +127,8 @@ prompt (non-interactive).
 |------|-------------|
 | `--software` | Software keys to install, comma-separated (skips the prompt). Include `dotfiles` to install your terminal environment. |
 
-Available `--software` keys: `docker`, `podman`, `k3s`, `node`, `go`, `python`,
-`rust`, `claude-code`, `opencode`, `hermes`, and `dotfiles` (see
+Available `--software` keys: `docker`, `podman`, `k3s`, `coolify`, `node`, `go`,
+`python`, `rust`, `claude-code`, `opencode`, `hermes`, and `dotfiles` (see
 `assets/additional-software.yaml`). **Dotfiles is a catalog entry like any other**,
 but it only appears in the checklist (and is only installable) when a
 `dotfiles_repo` is configured — see [dotfiles](dotfiles.md).
