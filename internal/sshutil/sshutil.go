@@ -39,6 +39,14 @@ func AppendAuthorizedKey(user, ip, pubKey string) error {
 		if hint := authFailureHint(msg); hint != "" {
 			return fmt.Errorf("could not authenticate to %s@%s over SSH — %s", user, ip, hint)
 		}
+		// accept-new records an unknown host silently but refuses a changed one,
+		// and that refusal is not an auth failure, so it would otherwise fall
+		// through to the raw ssh dump below. It means a previous guest at this
+		// address left its key behind — say what to run instead of showing the
+		// wall of asterisks.
+		if IsHostKeyMismatch(msg) {
+			return fmt.Errorf("the host key for %s changed — a previous guest at that address left its key in known_hosts; run `hlab known-hosts clean %s` and retry", ip, ip)
+		}
 		return fmt.Errorf("installing the key over SSH failed: %w\n%s", cerr, msg)
 	}
 	return nil

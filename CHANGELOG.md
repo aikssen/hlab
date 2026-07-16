@@ -8,6 +8,21 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
 ## [Unreleased]
 
 ### Added
+- **hlab cleans up the host keys it leaves behind** — destroying a guest and creating
+  another at the same address (recycled test IDs, a small static-IP pool) used to
+  leave a stale `known_hosts` entry and greet the next `ssh` with "REMOTE HOST
+  IDENTIFICATION HAS CHANGED". hlab was the one recording those entries
+  (`accept-new` in `add-ssh-key`, the TOFU prompt behind `{vm,ct} ssh`) and never
+  removed them. Now `create` and `destroy` drop the entry for the address they touch
+  — best-effort, never failing the operation. This is hooked to *mutations*, never to
+  connections: hlab only drops an entry for a guest it just created or destroyed, so
+  no man-in-the-middle warning is ever suppressed.
+- **`hlab known-hosts clean [name|id|ip]`** — the escape hatch for addresses hlab
+  didn't clean itself (guest destroyed from another machine, outside hlab, or before
+  this existed). Takes a name/id, or a bare IP for a guest with no declaration left.
+  `--all` walks the fleet and removes only entries that provably disagree with the
+  guest's live host key (`ssh-keyscan`); matching entries are kept and unreachable
+  guests are skipped. See [ssh-keys.md](docs/ssh-keys.md).
 - **Coolify in the software catalog** — `--software coolify` (or the provisioning
   checklist) installs [Coolify](https://coolify.io), a self-hosted PaaS, via its
   official installer. It brings its own Docker engine, so it needs no other catalog
@@ -19,6 +34,12 @@ and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0
   Note that Coolify registers the host as its own first server: it generates a
   keypair under `/data/coolify/ssh/keys` and installs the public half into
   `root`'s `authorized_keys`.
+
+### Fixed
+- **A changed host key now says what to do** — `{vm,ct} add-ssh-key` connects with
+  `StrictHostKeyChecking=accept-new`, which records an unknown host silently but
+  refuses a changed one. That refusal isn't an auth failure, so it fell through to a
+  raw ssh dump; it now names the cause and points at `hlab known-hosts clean <ip>`.
 
 ## [0.10.2] - 2026-07-05
 

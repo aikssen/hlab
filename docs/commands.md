@@ -17,6 +17,7 @@ VM and container subcommands accept a **name or a numeric ID**.
 | `hlab setup` | Configure connection/defaults. `--add-node`, `--add-ssh-key` to extend. |
 | `hlab doctor` | Check terraform, Proxmox reachability, config. |
 | `hlab plan [name\|id]` | Read-only drift report: runs `terraform plan` across the managed fleet (or one guest) and shows which guests have diverged from their declaration. Never applies. |
+| `hlab known-hosts clean [name\|id\|ip]` | Remove stale SSH host keys left by destroyed guests. `--all` checks the whole fleet and removes only entries that disagree with the guest's live key. See [ssh keys](ssh-keys.md). |
 | `hlab theme [name]` | List themes (marking the active one) or switch to `name`. See [themes](themes.md). |
 | `hlab version` | Print the version and build (e.g. `hlab v0.1.0-1a2b3c4`). |
 
@@ -169,6 +170,16 @@ and `hlab version` take no command-specific flags.
 |------|-------------|
 | `--key` | A `.pub` path or a literal key. Prompts from `~/.ssh` when omitted. |
 | `--password` | Root/admin password for keyless injection (containers over the console; see [SSH keys](ssh-keys.md)). |
+
+### `hlab known-hosts clean [name|id|ip]`
+
+| Flag | Description |
+|------|-------------|
+| `--all` | Check every managed guest and remove only the entries that disagree with its live host key. Entries that match, and guests that can't be reached to check, are left alone. |
+
+Takes a guest name/id (resolved to its address) or a bare IP. Use the IP form for an
+address hlab no longer has a declaration for — that is what this command is for, since
+`create`/`destroy` already clean up after the guests hlab itself touches.
 
 ### `hlab ct create`
 
