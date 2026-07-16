@@ -56,6 +56,15 @@ type VMSpec struct {
 	// with no IP.
 	HostManagedNet bool `yaml:"host_managed_net,omitempty"`
 
+	// CPUType is the QEMU CPU model (VMs only — a container shares the host
+	// kernel). Empty means the Terraform default, a portable baseline chosen so a
+	// VM can live-migrate between nodes with different host CPUs. Worth overriding
+	// per cluster: the default exposes AES but NOT PCLMULQDQ, and a binary compiled
+	// to require it dies at startup with SIGILL. Proxmox won't let a single flag be
+	// added on top of a model (its `flags` field only takes a security/virt subset),
+	// so the whole model has to change — e.g. `EPYC` on an all-AMD cluster.
+	CPUType string `yaml:"cpu_type,omitempty"`
+
 	Plan     string `yaml:"plan,omitempty"` // preconfigured plan name (e.g. "KVM2"/"micro"), empty = custom
 	Cores    int    `yaml:"cores"`
 	MemoryGB int    `yaml:"memory_gb"`           // VM memory (GB)
