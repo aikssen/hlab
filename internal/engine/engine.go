@@ -303,8 +303,15 @@ func (e *Engine) provision(vm *state.VMSpec, upgrade bool, verbWord string) erro
 	if slices.Contains(vm.Software, software.DotfilesKey) && e.Cfg.DotfilesRepo == "" {
 		return fmt.Errorf("dotfiles selected but no dotfiles_repo configured — set it with 'hlab setup --dotfiles-repo <ssh-url>'")
 	}
-	if err := e.Store.Save(vm); err != nil {
-		return err
+	// Same reasoning, same place. An SSH dotfiles_repo is cloned from inside the
+	// guest over the operator's *forwarded* agent (so a private key never leaves
+	// this machine), and SSH authenticates with a key however public the repo is —
+	// so an agent holding no identities simply cannot clone it. Ansible would only
+	// find that out minutes in, at the very last task, and report a bare
+	// "exit status 2". Checking here covers every caller (CLI and TUI alike).
+	if slices.Contains(vm.Software, software.DotfilesKey) &&
+		dotfilesRepoNeedsAgent(e.Cfg.DotfilesRepo) && !sshutil.AgentHasKeys() {
+		return fmt.Errorf("dotfiles selected but your SSH agent has no keys — %s is an SSH URL, cloned over the forwarded agent, so load the key that host authorizes:\n    ssh-add ~/.ssh/id_ed25519\nIf the repo is public, pointing dotfiles_repo at its https:// URL needs no agent at all", e.Cfg.DotfilesRepo)
 	}
 	ip := e.ResolveIP(vm)
 
@@ -316,9 +323,45 @@ func (e *Engine) provision(vm *state.VMSpec, upgrade bool, verbWord string) erro
 	if err := ar.Provision(vm, ip, e.Cfg.DotfilesRepo); err != nil {
 		return err
 	}
+	// Record the selection only now that Ansible has actually installed it. Saving
+	// before the run made the declaration a record of what was *asked for*, not of
+	// what is on the guest: a failed run left hlab reporting software that isn't
+	// there, and — worse — a retry with a narrower selection overwrote the list,
+	// silently dropping software an earlier run had really installed. Ansible is
+	// idempotent, so leaving the declaration untouched on failure is recoverable:
+	// re-run provision with the full selection.
+	if err := e.Store.Save(vm); err != nil {
+		return err
+	}
 	_ = e.Store.Commit(fmt.Sprintf("%s: %s %s", verbFor(vm), verbWord, vm.Name))
 	_ = e.Store.Push()
 	return nil
+}
+
+// dotfilesRepoNeedsAgent reports whether cloning repo from inside a guest needs
+// the operator's forwarded SSH agent — that is, whether the URL speaks SSH.
+//
+// An scp-style `git@host:path` or an explicit ssh:// URL authenticates with a key
+// no matter how public the repo is, so an empty agent cannot clone it. Any other
+// scheme (https://, http://, git://, file://) clones a public repo without one —
+// and the dotfiles task sets GIT_TERMINAL_PROMPT=0, so a *private* https repo
+// fails fast rather than hanging on a credential prompt.
+//
+// It errs toward "no agent needed" for anything it can't classify: wrongly
+// demanding an agent would block a provision that would have worked, whereas
+// wrongly allowing one only costs the deep Ansible failure this check exists to
+// pre-empt.
+func dotfilesRepoNeedsAgent(repo string) bool {
+	r := strings.TrimSpace(repo)
+	if strings.HasPrefix(r, "ssh://") {
+		return true
+	}
+	if strings.Contains(r, "://") {
+		return false // any other explicit scheme is keyless
+	}
+	// scp-style shorthand has no scheme: user@host:path.
+	at := strings.Index(r, "@")
+	return at >= 0 && strings.Index(r, ":") > at
 }
 
 // Destroy destroys the guest (VM or container) in Proxmox and removes its

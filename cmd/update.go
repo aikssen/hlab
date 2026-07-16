@@ -2,11 +2,8 @@ package cmd
 
 import (
 	"fmt"
-	"slices"
 
 	"github.com/spf13/cobra"
-
-	"github.com/aikssen/hlab/internal/software"
 )
 
 var updateUpgrade bool
@@ -58,14 +55,6 @@ func runUpdate(_ *cobra.Command, args []string) error {
 
 	eng := newEngine(cfg, store, runner)
 	eng.AnsibleVerbose = verbosity
-
-	// Installing dotfiles from a private repo relies on a forwarded SSH agent —
-	// same warning runVMProvision gives, since Update re-runs the same playbook.
-	if slices.Contains(vm.Software, software.DotfilesKey) && !sshAgentHasKeys() {
-		fmt.Println("! dotfiles is selected but your SSH agent has no keys.")
-		fmt.Println("  If the dotfiles repo is private, load the key GitHub authorizes first, e.g.:")
-		fmt.Println("    ssh-add ~/.ssh/id_ed25519")
-	}
 
 	title := "Re-provisioning (Ansible)…"
 	if updateUpgrade {

@@ -5,6 +5,29 @@ All notable changes to this project are documented in this file.
 The format is based on [Keep a Changelog](https://keepachangelog.com/en/1.1.0/),
 and this project adheres to [Semantic Versioning](https://semver.org/spec/v2.0.0.html).
 
+## [Unreleased]
+
+### Fixed
+- **A failed provision no longer makes the declaration lie** — the software
+  selection was saved *before* Ansible ran, so the declaration recorded what was
+  asked for rather than what is on the guest. A failed run left hlab reporting
+  software that was never installed, and a retry with a narrower selection
+  overwrote the list, silently dropping software an earlier run really had
+  installed (observed: a guest with Coolify running that hlab no longer listed,
+  while claiming dotfiles that wasn't there). The selection is now saved only once
+  Ansible succeeds; Ansible is idempotent, so a failure leaves the declaration
+  untouched and is recovered by re-running provision with the full selection.
+- **An empty SSH agent now fails fast, in every caller** — an SSH `dotfiles_repo`
+  is cloned from inside the guest over the operator's *forwarded* agent, and SSH
+  authenticates with a key however public the repo is, so an agent holding no
+  identities cannot clone it. hlab only warned about this, and only in the CLI: the
+  dashboard had no check at all and dived into a run guaranteed to die minutes
+  later, at the last task, as a bare `exit status 2`. The check moved into the
+  engine — next to the existing `dotfiles_repo` one, so CLI and TUI both get it —
+  and is now a hard error naming `ssh-add`. It applies only to SSH URLs
+  (`git@host:path`, `ssh://`): an `https://` repo clones without an agent and is
+  never blocked.
+
 ## [0.10.3] - 2026-07-16
 
 ### Added
