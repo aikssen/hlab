@@ -26,8 +26,8 @@ app. The `hlab vm …` and `hlab ct …` subcommands remain for scripting.
 - **Orchestrates Terraform + Ansible** under the hood — no hand-written config.
 - **Day-2 operations** — snapshots, migrate between nodes, resize CPU/RAM/disk.
 - **Adopt existing guests** created outside hlab, without ever touching them.
-- **Provisioning** — a software catalog (Docker, Podman, k3s, language runtimes,
-  agents) plus your dotfiles, installed idempotently.
+- **Provisioning** — a software catalog (Docker + Compose, Podman, k3s, language
+  runtimes, agents) plus your dotfiles, installed idempotently.
 - **Themeable** — built-in themes with live switching, plus your own.
 
 ## Requirements
