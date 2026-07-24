@@ -11,6 +11,12 @@
     creates: /usr/bin/docker
   when: docker_check.rc != 0
 
+- name: Ensure the Docker Compose plugin is installed
+  ansible.builtin.apt:
+    name: docker-compose-plugin
+    state: present
+    lock_timeout: 300
+
 - name: Add the user to the docker group
   ansible.builtin.user:
     name: "{{ target_user }}"
